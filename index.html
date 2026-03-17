@@ -6,41 +6,67 @@
 
 <style>
 body {
-    font-family: Arial;
+    font-family: Arial, sans-serif;
     background: #eef2f7;
     text-align: center;
 }
 
 .box {
     background: white;
-    padding: 20px;
-    margin: 40px auto;
-    width: 400px;
+    padding: 30px;
+    margin: 50px auto;
+    width: 450px;
     border-radius: 15px;
-    box-shadow: 0 0 10px gray;
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+}
+
+h2 {
+    color: #333;
 }
 
 input {
-    padding: 8px;
-    margin: 5px;
-    width: 80%;
+    padding: 10px;
+    margin: 10px 0;
+    width: 90%;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+input:focus {
+    border-color: #28a745;
+    outline: none;
 }
 
 button {
-    padding: 10px;
+    padding: 12px 20px;
     background: #28a745;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background: #218838;
 }
 
 .step {
     text-align: left;
-    margin-top: 10px;
+    margin-top: 15px;
     background: #f9f9f9;
-    padding: 10px;
+    padding: 12px;
     border-radius: 10px;
     font-family: monospace;
+    font-size: 15px;
+}
+
+.result-title {
+    font-weight: bold;
+    margin-top: 20px;
+    color: #007bff;
 }
 </style>
 </head>
@@ -50,8 +76,8 @@ button {
 <div class="box">
     <h2>Bernulli formulasi</h2>
 
-    <input type="number" id="n" placeholder="n (tajriba)">
-    <input type="number" id="k" placeholder="k (muvaffaqiyat)">
+    <input type="number" id="n" placeholder="n (tajriba soni)">
+    <input type="number" id="k" placeholder="k (muvaffaqiyat soni)">
     <input type="number" step="0.01" id="p" placeholder="p (0.1 kabi)">
 
     <br>
@@ -62,6 +88,7 @@ button {
 
 <script>
 function factorial(n) {
+    if(n === 0) return 1;
     let res = 1;
     for (let i = 1; i <= n; i++) res *= i;
     return res;
@@ -76,26 +103,33 @@ function hisobla() {
     let k = Number(document.getElementById("k").value);
     let p = Number(document.getElementById("p").value);
 
-    let q = 1 - p;
+    if(isNaN(n) || isNaN(k) || isNaN(p) || n<0 || k<0 || p<0 || p>1 || k>n) {
+        alert("Iltimos, to‘g‘ri qiymat kiriting!");
+        return;
+    }
 
+    let q = 1 - p;
     let C = combination(n, k);
     let pk = Math.pow(p, k);
     let qn = Math.pow(q, n - k);
     let result = C * pk * qn;
 
-    document.getElementById("steps").innerHTML = `
-    <div class="step">
-    P<sub>${n}</sub>(${k}) = C<sub>${n}</sub><sup>${k}</sup> · (${p})<sup>${k}</sup> · (${q})<sup>${n-k}</sup>
-    </div>
+    let stepsDiv = document.getElementById("steps");
+    stepsDiv.innerHTML = "";
 
-    <div class="step">
-    = ${C} · ${pk.toFixed(4)} · ${qn.toFixed(4)}
-    </div>
+    // Qadamlarni ko'rsatish jonli
+    let steps = [
+        `Formulasi: P<sub>${n}</sub>(${k}) = C<sub>${n}</sub><sup>${k}</sup> · (${p})<sup>${k}</sup> · (${q.toFixed(2)})<sup>${n-k}</sup>`,
+        `Kombinatsiya: C<sub>${n}</sub><sup>${k}</sup> = ${C}`,
+        `p<sup>k</sup> · q<sup>n-k</sup> = ${pk.toFixed(4)} · ${qn.toFixed(4)}`,
+        `<span class="result-title">Natija: ${result.toFixed(4)}</span>`
+    ];
 
-    <div class="step">
-    = ${result.toFixed(4)}
-    </div>
-    `;
+    steps.forEach((step, index) => {
+        setTimeout(() => {
+            stepsDiv.innerHTML += `<div class="step">${step}</div>`;
+        }, index * 500);
+    });
 }
 </script>
 
