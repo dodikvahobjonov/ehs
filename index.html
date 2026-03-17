@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<title>Bernulli o‘rgatuvchi sayt</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #eef2f7;
+    text-align: center;
+}
+
+.box {
+    background: white;
+    padding: 20px;
+    margin: 40px auto;
+    width: 350px;
+    border-radius: 15px;
+    box-shadow: 0 0 10px gray;
+}
+
+input {
+    padding: 8px;
+    margin: 5px;
+    width: 80%;
+}
+
+button {
+    padding: 10px;
+    background: #007BFF;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+
+.step {
+    text-align: left;
+    margin-top: 10px;
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+    <h2>Bernulli formulasi</h2>
+
+    <input type="number" id="n" placeholder="n (tajriba)">
+    <input type="number" id="k" placeholder="k (muvaffaqiyat)">
+    <input type="number" step="0.01" id="p" placeholder="p (0.5 kabi)">
+
+    <br>
+    <button onclick="hisobla()">Hisoblash</button>
+
+    <h3 id="natija"></h3>
+    <div id="steps"></div>
+</div>
+
+<script>
+function factorial(n) {
+    let res = 1;
+    for (let i = 1; i <= n; i++) res *= i;
+    return res;
+}
+
+function combination(n, k) {
+    return factorial(n) / (factorial(k) * factorial(n - k));
+}
+
+function hisobla() {
+    let n = Number(document.getElementById("n").value);
+    let k = Number(document.getElementById("k").value);
+    let p = Number(document.getElementById("p").value);
+
+    let q = 1 - p;
+
+    let C = combination(n, k);
+    let pk = Math.pow(p, k);
+    let qn = Math.pow(q, n - k);
+
+    let result = C * pk * qn;
+
+    document.getElementById("natija").innerText =
+        "Natija: " + result.toFixed(4);
+
+    // Qadamlar
+    document.getElementById("steps").innerHTML = `
+    <div class="step"><b>1-qadam:</b> q = 1 - p = ${q}</div>
+
+    <div class="step"><b>2-qadam:</b> C(n,k) = ${n}! / (${k}!(${n-k})!) = ${C}</div>
+
+    <div class="step"><b>3-qadam:</b> p^k = ${p}^${k} = ${pk.toFixed(4)}</div>
+
+    <div class="step"><b>4-qadam:</b> q^(n-k) = ${q}^${n-k} = ${qn.toFixed(4)}</div>
+
+    <div class="step"><b>5-qadam:</b> Natija = ${C} × ${pk.toFixed(4)} × ${qn.toFixed(4)}</div>
+    `;
+}
+</script>
+
+</body>
+</html>
