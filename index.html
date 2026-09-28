@@ -3,25 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maktab Buxgalteriya Cloud PRO</title>
-
-    <meta property="og:title" content="Maktab Buxgalteriya Cloud PRO">
-    <meta property="og:description" content="Talabalar hisob-kitobi va davomatini boshqarish tizimi">
-    <meta property="og:image" content="https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1000">
-    <meta property="og:url" content="https://maktab-hisob.vercel.app">
+    <title>Maktab Buxgalteriya </title>
+    <meta property="og:title" content="Maktab Buxgalteriya PRO MAX">
+    <meta property="og:description" content="To'liq maktab buxgalteriya tizimi">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2653/2653500.png" type="image/x-icon">
-
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- ZAXIRA: Firebase ishlamasa ham sayt ochiladi va kirish ishlaydi -->
     <script>
         window.archiveData = window.archiveData || {};
-        window.config = window.config || { user:'admin', pass:'123', phone:'+998',
+        window.students = window.students || [];
+        window.attendance = window.attendance || {};
+        window.payments = window.payments || [];
+        window.expenses = window.expenses || [];
+        window.config = window.config || { user:'admin', pass:'123', phone:'+998', orgName:'Maktab',
                                            tgToken:'', chatId:'', defaultPrice:0 };
         window.cloudStatus = 'yuklanmoqda';
     </script>
@@ -29,7 +27,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
         const firebaseConfig = {
             apiKey: "AIzaSyDWL--54HpVLoyjsT_QOZcFoSNsawjQfHg",
             authDomain: "maktab-buxgalteriya.firebaseapp.com",
@@ -39,603 +36,974 @@
             messagingSenderId: "1005121978052",
             appId: "1:1005121978052:web:5ab340f9d8c40705dbd391"
         };
-
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        onValue(ref(db, 'accounting/data'), (snapshot) => {
-            window.archiveData = snapshot.val() || {};
-            window.cloudStatus = 'ulandi';
-            if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
-            if (sessionStorage.getItem('isAuth') === 'true') renderTable();
+        onValue(ref(db, 'accounting/data'), s => {
+            window.archiveData = s.val() || {}; window.cloudStatus = 'ulandi';
+            if (typeof renderCurrentTab === 'function') renderCurrentTab();
+        });
+        onValue(ref(db, 'accounting/config'), s => {
+            const v = s.val(); if (v && v.user && v.pass) window.config = v;
+        });
+        onValue(ref(db, 'accounting/students'), s => {
+            window.students = s.val() || [];
+            if (typeof renderStudents === 'function') renderStudents();
+        });
+        onValue(ref(db, 'accounting/attendance'), s => {
+            window.attendance = s.val() || {};
+            if (typeof renderAttendance === 'function') renderAttendance();
+        });
+        onValue(ref(db, 'accounting/payments'), s => {
+            window.payments = s.val() || [];
+            if (typeof renderPayments === 'function') renderPayments();
+        });
+        onValue(ref(db, 'accounting/expenses'), s => {
+            window.expenses = s.val() || [];
+            if (typeof renderExpenses === 'function') renderExpenses();
         });
 
-        // Bulutdagi config faqat to'liq bo'lsa o'zgartiriladi (bo'sh bo'lsa standart qoladi)
-        onValue(ref(db, 'accounting/config'), (snapshot) => {
-            const v = snapshot.val();
-            if (v && v.user && v.pass) window.config = v;
-        });
-
-        window.saveToCloud = () => {
-            window.cloudStatus = 'saqlanmoqda';
-            if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
-            set(ref(db, 'accounting/data'), window.archiveData)
-                .then(() => { window.cloudStatus = 'saqlandi'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); })
-                .catch(() => { window.cloudStatus = 'xato'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); });
-        };
+        window.saveToCloud = () => set(ref(db, 'accounting/data'), window.archiveData);
         window.saveConfigToCloud = () => set(ref(db, 'accounting/config'), window.config);
+        window.saveStudents = () => set(ref(db, 'accounting/students'), window.students);
+        window.saveAttendance = () => set(ref(db, 'accounting/attendance'), window.attendance);
+        window.savePayments = () => set(ref(db, 'accounting/payments'), window.payments);
+        window.saveExpenses = () => set(ref(db, 'accounting/expenses'), window.expenses);
     </script>
 
     <style>
-        :root { --bg:#f8fafc; --card:#ffffff; --primary:#6366f1; --text:#1e293b; --sub:#64748b;
+        :root { --bg:#f8fafc; --card:#fff; --primary:#6366f1; --text:#1e293b; --sub:#64748b;
                 --border:#e2e8f0; --success:#10b981; --danger:#ef4444; --warn:#f59e0b; }
         .dark-mode { --bg:#0f172a; --card:#1e293b; --text:#f1f5f9; --sub:#94a3b8; --border:#334155; }
-        * { box-sizing: border-box; }
-        body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:var(--text);
-               margin:0; padding:20px; transition:.3s; }
-
-        #login-overlay, .modal-overlay { position:fixed; inset:0; background:var(--bg);
-               display:flex; justify-content:center; align-items:center; z-index:9999; transition:.3s; }
-        .modal-overlay { background:rgba(0,0,0,.5); display:none; }
-        .card { background:var(--card); padding:30px; border-radius:24px;
-               box-shadow:0 10px 25px rgba(0,0,0,.08); width:100%; max-width:380px; border:1px solid var(--border); }
-
-        input, select { background:var(--bg); color:var(--text); border:1px solid var(--border);
-               border-radius:12px; padding:12px; width:100%; margin-bottom:12px; outline:none; font-family:inherit; }
+        * { box-sizing:border-box; }
+        body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:var(--text); margin:0; padding:20px; transition:.3s; }
+        #login-overlay, .modal-overlay { position:fixed; inset:0; background:var(--bg); display:flex; justify-content:center; align-items:center; z-index:9999; }
+        .modal-overlay { background:rgba(0,0,0,.55); display:none; }
+        .card { background:var(--card); padding:30px; border-radius:24px; box-shadow:0 10px 25px rgba(0,0,0,.08); width:100%; max-width:400px; border:1px solid var(--border); }
+        input, select { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:12px; width:100%; margin-bottom:12px; outline:none; font-family:inherit; }
         input:focus, select:focus { border-color:var(--primary); }
-
-        .btn { padding:10px 16px; border-radius:12px; border:none; font-weight:600; cursor:pointer;
-               transition:.2s; display:inline-flex; align-items:center; gap:6px; font-size:13px;
-               font-family:inherit; white-space:nowrap; }
+        .btn { padding:10px 16px; border-radius:12px; border:none; font-weight:600; cursor:pointer; transition:.2s; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-family:inherit; white-space:nowrap; }
         .btn:hover { transform:translateY(-2px); }
         .btn-primary { background:var(--primary); color:#fff; }
         .btn-outline { background:var(--card); border:1px solid var(--border); color:var(--text); }
         .btn-danger { background:var(--danger); color:#fff; }
-
-        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
-               gap:14px; margin-bottom:20px; }
-        .stat-card { background:var(--card); padding:16px 20px; border-radius:18px;
-               border:1px solid var(--border); transition:.2s; }
-        .stat-card:hover { box-shadow:0 6px 18px rgba(0,0,0,.08); transform:translateY(-2px); }
+        .btn-success { background:var(--success); color:#fff; }
+        .tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+        .tab-btn { padding:11px 16px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); font-weight:700; cursor:pointer; font-family:inherit; font-size:13px; }
+        .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:20px; }
+        .stat-card { background:var(--card); padding:16px 20px; border-radius:18px; border:1px solid var(--border); }
         .stat-card span { font-size:12px; color:var(--sub); font-weight:600; }
-        .stat-card h2 { margin:6px 0 0; font-size:24px; }
-
+        .stat-card h2 { margin:6px 0 0; font-size:22px; }
         .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
         @media(max-width:800px){ .charts-grid{ grid-template-columns:1fr; } }
         .chart-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:20px; }
         .chart-card h3 { margin:0 0 12px; font-size:15px; color:var(--sub); }
         .chart-box { height:250px; position:relative; }
-
         .toolbar { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
-        .table-container { background:var(--card); border-radius:20px; padding:20px;
-               overflow-x:auto; border:1px solid var(--border); }
-        table { width:100%; border-collapse:separate; border-spacing:0 8px; min-width:900px; }
-        th { text-align:left; padding:10px; font-size:11px; color:var(--sub); text-transform:uppercase;
-               cursor:pointer; user-select:none; }
+        .table-container { background:var(--card); border-radius:20px; padding:20px; overflow-x:auto; border:1px solid var(--border); margin-bottom:20px; }
+        .table-container h3 { margin:0 0 12px; font-size:15px; color:var(--sub); }
+        table { width:100%; border-collapse:separate; border-spacing:0 8px; min-width:800px; }
+        th { text-align:left; padding:10px; font-size:11px; color:var(--sub); text-transform:uppercase; cursor:pointer; user-select:none; }
         th:hover { color:var(--primary); }
         td { padding:6px 10px; vertical-align:middle; }
         tr.row-debt td { background:rgba(239,68,68,.06); }
         tfoot td { font-weight:800; border-top:2px solid var(--border); font-size:15px; }
-
-        .status-badge { padding:8px 12px; border-radius:10px; font-size:11px; font-weight:700;
-               border:none; cursor:pointer; width:100px; font-family:inherit; }
-        .st-paid { background:#d1fae5; color:#065f46; }
-        .st-partial { background:#fef3c7; color:#92400e; }
-        .st-debt { background:#fee2e2; color:#991b1b; }
-
-        .attendance-btn { width:35px; height:35px; border-radius:10px; border:1px solid var(--border);
-               cursor:pointer; font-size:16px; }
-        .present { background:var(--success); color:#fff; }
-        .absent { background:var(--danger); color:#fff; }
-
+        .status-badge { padding:8px 12px; border-radius:10px; font-size:11px; font-weight:700; border:none; cursor:pointer; width:100px; font-family:inherit; }
+        .st-paid { background:#d1fae5; color:#065f46; } .st-partial { background:#fef3c7; color:#92400e; } .st-debt { background:#fee2e2; color:#991b1b; }
+        .attendance-btn { width:35px; height:35px; border-radius:10px; border:1px solid var(--border); cursor:pointer; font-size:16px; }
+        .present { background:var(--success); color:#fff; } .absent { background:var(--danger); color:#fff; }
+        .att-row { display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:10px 16px; margin-bottom:8px; flex-wrap:wrap; }
+        .att-big { padding:10px 16px; border-radius:12px; border:none; font-weight:700; cursor:pointer; font-family:inherit; min-width:110px; font-size:13px; }
+        .att-big.on { background:var(--success); color:#fff; } .att-big.off { background:var(--danger); color:#fff; }
+        .att-big:not(.on):not(.off) { background:var(--bg); color:var(--sub); border:1px solid var(--border); }
         .icon-btn { background:none; border:none; cursor:pointer; font-size:16px; padding:4px 6px; }
         #sync-status { font-size:12px; color:var(--sub); font-weight:600; }
-
-        .toast { position:fixed; bottom:25px; right:25px; padding:14px 22px; border-radius:14px;
-               color:#fff; font-weight:600; font-size:14px; z-index:10000; animation:pop .3s;
-               box-shadow:0 8px 20px rgba(0,0,0,.2); }
-        .toast.ok { background:var(--success); }
-        .toast.err { background:var(--danger); }
+        .chip { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 14px; font-size:12px; color:var(--sub); font-weight:700; }
+        .toast { position:fixed; bottom:25px; right:25px; padding:14px 22px; border-radius:14px; color:#fff; font-weight:600; font-size:14px; z-index:10000; animation:pop .3s; box-shadow:0 8px 20px rgba(0,0,0,.2); }
+        .toast.ok { background:var(--success); } .toast.err { background:var(--danger); }
         @keyframes pop { from { transform:translateY(20px); opacity:0; } }
+        .form-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+        .form-row input, .form-row select { margin:0; }
     </style>
 </head>
 <body>
 
-    <!-- ========== KIRISH ========== -->
     <div id="login-overlay">
         <div class="card" style="text-align:center;">
             <div style="font-size:48px;">☁️</div>
-            <h2 style="margin:8px 0 20px;">Cloud Buxgalteriya PRO</h2>
+            <h2 style="margin:8px 0 20px;">Cloud Buxgalteriya PRO MAX</h2>
             <input type="text" id="username" placeholder="Login">
             <input type="password" id="password" placeholder="Parol">
             <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="handleLogin()">Kirish</button>
-            <button class="btn" style="background:none; color:var(--primary); font-size:12px; margin-top:10px;"
-                    onclick="toggleRecover(true)">Parolni unutdim</button>
+            <button class="btn" style="background:none; color:var(--primary); font-size:12px; margin-top:10px;" onclick="toggleRecover(true)">Parolni unutdim</button>
             <div id="recover-form" style="display:none; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
                 <input type="text" id="rec-phone" placeholder="Telefon: +998...">
                 <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="handleRecover()">Parolni ko'rish</button>
-                <button class="btn" style="background:none; color:var(--sub); font-size:12px; margin-top:6px;"
-                        onclick="toggleRecover(false)">Bekor qilish</button>
+                <button class="btn" style="background:none; color:var(--sub); font-size:12px; margin-top:6px;" onclick="toggleRecover(false)">Bekor qilish</button>
             </div>
         </div>
     </div>
 
-    <!-- ========== ASOSIY QISM ========== -->
     <div id="main-content" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
-            <h1 style="margin:0;">Maktab Pro ☁️</h1>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+            <h1 style="margin:0;">Maktab Pro ☁️ <span style="font-size:13px; color:var(--primary);">PRO MAX</span></h1>
             <span id="sync-status">☁️ Ulanmoqda...</span>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="btn btn-primary" onclick="addStudent()">+ Talaba</button>
                 <button class="btn btn-outline" onclick="toggleDark()" id="dark-toggle">🌙</button>
                 <button class="btn btn-outline" onclick="openSettings()">⚙️</button>
                 <button class="btn btn-outline" onclick="logout()">Chiqish</button>
             </div>
         </div>
-        <div style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
-            <button class="btn btn-outline" onclick="exportExcel()">📊 Excel</button>
-            <button class="btn btn-outline" onclick="exportPDF()">📄 PDF</button>
-            <button class="btn btn-outline" onclick="copyPrevMonth()">📋 O'tgan oydan ko'chirish</button>
-            <button class="btn btn-outline" onclick="sendTelegram()">🤖 Telegramga yuborish</button>
-            <button class="btn btn-outline" onclick="backupJSON()">💾 Zaxira</button>
-            <button class="btn btn-outline" onclick="document.getElementById('restore-file').click()">⬆️ Tiklash</button>
-            <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(this)">
+
+        <div class="tabs">
+            <button class="tab-btn active" id="tb-hisob" onclick="switchTab('hisob')">💰 Hisob</button>
+            <button class="tab-btn" id="tb-davomat" onclick="switchTab('davomat')">📅 Kunlik davomat</button>
+            <button class="tab-btn" id="tb-qarzdorlar" onclick="switchTab('qarzdorlar')">🔴 Qarzdorlar</button>
+            <button class="tab-btn" id="tb-yillik" onclick="switchTab('yillik')">📈 Yillik</button>
+            <button class="tab-btn" id="tb-tolovlar" onclick="switchTab('tolovlar')">🧾 To'lovlar</button>
+            <button class="tab-btn" id="tb-xarajatlar" onclick="switchTab('xarajatlar')">💸 Xarajatlar</button>
+            <button class="tab-btn" id="tb-baza" onclick="switchTab('baza')">👨‍🎓 Baza</button>
         </div>
 
-        <div class="charts-grid">
-            <div class="chart-card"><h3>💰 Moliya</h3><div class="chart-box"><canvas id="barChart"></canvas></div></div>
-            <div class="chart-card"><h3>📈 To'lov holati</h3><div class="chart-box"><canvas id="donutChart"></canvas></div></div>
-        </div>
-
-        <div class="toolbar">
-            <select id="month-select" onchange="renderTable()" style="width:150px; margin:0;">
-                <option>Yanvar</option><option>Fevral</option><option>Mart</option><option>Aprel</option>
-                <option>May</option><option>Iyun</option><option>Iyul</option><option>Avgust</option>
-                <option>Sentabr</option><option>Oktabr</option><option>Noyabr</option><option>Dekabr</option>
-            </select>
-            <input type="text" id="search-input" placeholder="🔍 Qidirish..." oninput="renderTable()"
-                   style="flex:1; margin:0;">
-            <button class="btn btn-outline" onclick="markAll(true)">✅ Hammasi keldi</button>
-            <button class="btn btn-danger" onclick="clearMonth()">🗑 Oyni tozalash</button>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card"><span>💰 Tushum</span><h2 id="s-total" style="color:var(--primary)">0</h2></div>
-            <div class="stat-card"><span>🍽 Chiqim</span><h2 id="s-food" style="color:var(--danger)">0</h2></div>
-            <div class="stat-card"><span>✅ Foyda</span><h2 id="s-net" style="color:var(--success)">0</h2></div>
-            <div class="stat-card"><span>👥 O'quvchilar</span><h2 id="s-count">0</h2></div>
-            <div class="stat-card"><span>📅 Davomat</span><h2 id="s-att">0%</h2></div>
-            <div class="stat-card"><span>🔴 Qarz</span><h2 id="s-debt" style="color:var(--danger)">0</h2></div>
-        </div>
-
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:40px">Tr</th>
-                        <th style="width:60px">Dars</th>
-                        <th onclick="setSort('name')">Ism Sharif <span id="arr-name"></span></th>
+        <!-- HISOB -->
+        <div id="tab-hisob" class="tab-page">
+            <div style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
+                <button class="btn btn-primary" onclick="addStudent()">+ Talaba</button>
+                <button class="btn btn-outline" onclick="quickFillFromBase()">👨‍🎓 Bazadan to'ldirish</button>
+                <button class="btn btn-outline" onclick="copyPrevMonth()">📋 O'tgan oydan</button>
+                <button class="btn btn-outline" onclick="exportExcel()">📊 Excel</button>
+                <button class="btn btn-outline" onclick="exportPDF()">📄 PDF</button>
+                <button class="btn btn-outline" onclick="sendTelegram()">🤖 Telegram</button>
+                <button class="btn btn-outline" onclick="backupJSON()">💾 Zaxira</button>
+                <button class="btn btn-outline" onclick="document.getElementById('restore-file').click()">⬆️ Tiklash</button>
+                <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(this)">
+            </div>
+            <div class="charts-grid">
+                <div class="chart-card"><h3>💰 Moliya</h3><div class="chart-box"><canvas id="barChart"></canvas></div></div>
+                <div class="chart-card"><h3>📈 To'lov holati</h3><div class="chart-box"><canvas id="donutChart"></canvas></div></div>
+            </div>
+            <div class="toolbar">
+                <select id="month-select" onchange="renderTable()" style="width:140px; margin:0;">
+                    <option>Yanvar</option><option>Fevral</option><option>Mart</option><option>Aprel</option>
+                    <option>May</option><option>Iyun</option><option>Iyul</option><option>Avgust</option>
+                    <option>Sentabr</option><option>Oktabr</option><option>Noyabr</option><option>Dekabr</option>
+                </select>
+                <select id="cls-filter" onchange="renderTable()" style="width:140px; margin:0;">
+                    <option value="">🎓 Barcha sinflar</option>
+                </select>
+                <input type="text" id="search-input" placeholder="🔍 Qidirish..." oninput="renderTable()" style="flex:1; margin:0;">
+                <button class="btn btn-outline" onclick="markAll(true)">✅ Hammasi keldi</button>
+                <button class="btn btn-danger" onclick="clearMonth()">🗑 Oyni tozalash</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card"><span>💰 Tushum</span><h2 id="s-total" style="color:var(--primary)">0</h2></div>
+                <div class="stat-card"><span>🍽 Chiqim</span><h2 id="s-food" style="color:var(--danger)">0</h2></div>
+                <div class="stat-card"><span>✅ Foyda</span><h2 id="s-net" style="color:var(--success)">0</h2></div>
+                <div class="stat-card"><span>👥 O'quvchilar</span><h2 id="s-count">0</h2></div>
+                <div class="stat-card"><span>📅 Davomat</span><h2 id="s-att">0%</h2></div>
+                <div class="stat-card"><span>🔴 Qarz</span><h2 id="s-debt" style="color:var(--danger)">0</h2></div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr>
+                        <th style="width:40px">Tr</th><th style="width:60px">Dars</th>
+                        <th onclick="setSort('name')">Ism <span id="arr-name"></span></th>
                         <th style="width:130px" onclick="setSort('price')">Narx <span id="arr-price"></span></th>
                         <th style="width:130px">Ovqat</th>
                         <th onclick="setSort('net')">Sof <span id="arr-net"></span></th>
-                        <th>Holat</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="table-body"></tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="3">JAMI</td>
-                        <td id="ft-price"></td><td id="ft-food"></td><td id="ft-net"></td>
-                        <td colspan="2"></td>
-                    </tr>
-                </tfoot>
-            </table>
+                        <th>Holat</th><th></th>
+                    </tr></thead>
+                    <tbody id="table-body"></tbody>
+                    <tfoot><tr><td colspan="3">JAMI</td><td id="ft-price"></td><td id="ft-food"></td><td id="ft-net"></td><td colspan="2"></td></tr></tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- KUNLIK DAVOMAT -->
+        <div id="tab-davomat" class="tab-page" style="display:none;">
+            <div class="toolbar">
+                <input type="date" id="att-date" onchange="renderAttendance()" style="width:auto; margin:0;">
+                <button class="btn btn-success" onclick="markAllDay(true)">✅ Hammasi keldi</button>
+                <button class="btn btn-danger" onclick="markAllDay(false)">❌ Hammasi kelmadi</button>
+            </div>
+            <div id="att-summary" class="chip" style="display:inline-block; margin-bottom:14px;"></div>
+            <div id="att-list"></div>
+            <div class="table-container" style="margin-top:16px;">
+                <h3>📊 Oylik davomat (tanlangan sana oyi bo'yicha)</h3>
+                <table style="min-width:500px;">
+                    <thead><tr><th>O'quvchi</th><th>Yozilgan kunlar</th><th>Keldi</th><th>Kelmadi</th></tr></thead>
+                    <tbody id="att-month-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- QARZDORLAR -->
+        <div id="tab-qarzdorlar" class="tab-page" style="display:none;">
+            <div class="stats-grid">
+                <div class="stat-card"><span>🔴 Umumiy qarz</span><h2 id="d-total" style="color:var(--danger)">0</h2></div>
+                <div class="stat-card"><span>👥 Qarzdorlar</span><h2 id="d-count">0</h2></div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th style="width:110px">Oy</th><th>Ism</th><th style="width:140px">Qarz</th><th style="width:200px">Amal</th></tr></thead>
+                    <tbody id="debt-body"></tbody>
+                    <tfoot><tr><td colspan="2">JAMI</td><td id="debt-ft"></td><td></td></tr></tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- YILLIK -->
+        <div id="tab-yillik" class="tab-page" style="display:none;">
+            <div class="chart-card" style="margin-bottom:20px;">
+                <h3>📈 Yillik natijalar (12 oy)</h3>
+                <div class="chart-box" style="height:320px;"><canvas id="yearChart"></canvas></div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card"><span>💰 Yillik tushum</span><h2 id="y-p" style="color:var(--primary)">0</h2></div>
+                <div class="stat-card"><span>🍽 Ovqat</span><h2 id="y-f" style="color:var(--danger)">0</h2></div>
+                <div class="stat-card"><span>💸 Xarajat</span><h2 id="y-e" style="color:var(--warn)">0</h2></div>
+                <div class="stat-card"><span>🏆 Sof foyda</span><h2 id="y-n" style="color:var(--success)">0</h2></div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Oy</th><th>O'quvchi</th><th>Tushum</th><th>Ovqat</th><th>Xarajat</th><th>Sof foyda</th></tr></thead>
+                    <tbody id="year-body"></tbody>
+                    <tfoot><tr><td>JAMI</td><td id="yft-c"></td><td id="yft-p"></td><td id="yft-f"></td><td id="yft-e"></td><td id="yft-n"></td></tr></tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- TO'LOVLAR -->
+        <div id="tab-tolovlar" class="tab-page" style="display:none;">
+            <div class="table-container">
+                <h3>➕ Yangi to'lov qayd etish</h3>
+                <div class="form-row">
+                    <input id="pay-name" list="names-list" placeholder="Ism Sharif" style="flex:2; min-width:160px;">
+                    <datalist id="names-list"></datalist>
+                    <input id="pay-amount" type="number" placeholder="Summa (so'm)" style="flex:1; min-width:130px;">
+                    <input id="pay-date" type="date" style="flex:1; min-width:140px;">
+                    <input id="pay-note" placeholder="Izoh (masalan: mart oyi)" style="flex:1; min-width:130px;">
+                    <button class="btn btn-primary" onclick="addPayment()">Qayd etish</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <h3>📚 To'lovlar jurnali</h3>
+                <table>
+                    <thead><tr><th style="width:110px">Sana</th><th>Ism</th><th style="width:140px">Summa</th><th>Izoh</th><th style="width:110px">Amal</th></tr></thead>
+                    <tbody id="pay-body"></tbody>
+                    <tfoot><tr><td colspan="2">JAMI</td><td id="pay-ft"></td><td colspan="2"></td></tr></tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- XARAJATLAR -->
+        <div id="tab-xarajatlar" class="tab-page" style="display:none;">
+            <div class="table-container">
+                <h3>➕ Yangi xarajat (gaz, svet, suv, ta'mirlash...)</h3>
+                <div class="form-row">
+                    <input id="exp-title" placeholder="Nima uchun?" style="flex:2; min-width:150px;">
+                    <input id="exp-amount" type="number" placeholder="Summa (so'm)" style="flex:1; min-width:130px;">
+                    <input id="exp-date" type="date" style="flex:1; min-width:140px;">
+                    <button class="btn btn-primary" onclick="addExpense()">Qayd etish</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <h3>💸 Xarajatlar ro'yxati</h3>
+                <table style="min-width:500px;">
+                    <thead><tr><th style="width:110px">Sana</th><th>Nima uchun</th><th style="width:140px">Summa</th><th style="width:60px"></th></tr></thead>
+                    <tbody id="exp-body"></tbody>
+                    <tfoot><tr><td colspan="2">JAMI</td><td id="exp-ft"></td><td></td></tr></tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- BAZA -->
+        <div id="tab-baza" class="tab-page" style="display:none;">
+            <div class="table-container">
+                <h3>➕ Yangi o'quvchi (bir marta kiritiladi!)</h3>
+                <div class="form-row">
+                    <input id="st-name" placeholder="Ism Sharif" style="flex:2; min-width:160px;">
+                    <input id="st-cls" placeholder="Sinf (5-A)" style="flex:1; min-width:90px;">
+                    <input id="st-price" type="number" placeholder="Oylik narx" style="flex:1; min-width:110px;">
+                    <input id="st-phone" placeholder="Telefon (WhatsApp)" style="flex:1; min-width:130px;">
+                    <button class="btn btn-primary" onclick="addStudentToBase()">Qo'shish</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <h3>👨‍🎓 O'quvchilar bazasi</h3>
+                <table>
+                    <thead><tr><th>Ism Sharif</th><th style="width:90px">Sinf</th><th style="width:130px">Narx</th><th style="width:150px">Telefon</th><th style="width:120px">Amal</th></tr></thead>
+                    <tbody id="base-body"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <!-- ========== SOZLAMALAR ========== -->
+    <!-- SOZLAMALAR -->
     <div id="modal-settings" class="modal-overlay">
         <div class="card">
             <h3 style="margin-top:0;">⚙️ Sozlamalar</h3>
             <input type="text" id="set-user" placeholder="Login">
             <input type="text" id="set-pass" placeholder="Parol">
+            <input type="text" id="set-org" placeholder="Muassasa nomi (chek uchun)">
             <input type="text" id="set-phone" placeholder="Telefon (parol tiklash uchun)">
             <input type="number" id="set-price" placeholder="Standart oylik narx">
             <input type="text" id="set-tg-token" placeholder="Telegram Bot Token">
             <input type="text" id="set-chat-id" placeholder="Telegram Chat ID">
             <div style="display:flex; gap:10px;">
                 <button class="btn btn-primary" onclick="saveSettings()">Saqlash</button>
-                <button class="btn btn-outline" onclick="closeSettings()">Yopish</button>
+                <button class="btn btn-outline" onclick="closeModal('modal-settings')">Yopish</button>
             </div>
         </div>
     </div>
 
+    <!-- O'QUVCHI KARTOCHKASI -->
+    <div id="modal-card" class="modal-overlay">
+        <div class="card" style="max-width:560px; max-height:85vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">👤 <span id="card-name"></span></h3>
+            <div id="card-body"></div>
+            <button class="btn btn-outline" style="margin-top:10px;" onclick="closeModal('modal-card')">Yopish</button>
+        </div>
+    </div>
+
     <script>
-        let myChart, donutChart;
-        let sortKey = null, sortDir = 1;
-        const MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust',
-                        'Sentabr','Oktabr','Noyabr','Dekabr'];
+        let myChart, donutChart, yearChart;
+        let sortKey = null, sortDir = 1, currentTab = 'hisob';
+        const MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
         const esc = s => String(s ?? '').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+        const fmt = n => (+n||0).toLocaleString();
+        const todayStr = () => new Date().toISOString().slice(0,10);
 
-        /* ---------- BILDIRISHNOMALAR ---------- */
+        /* ---------- MA'LUMOT O'QISH (Firebase obyekt/massiv farqini hal qiladi) ---------- */
+        const arr = v => !v ? [] : (Array.isArray(v) ? v.filter(x=>x) : Object.values(v).filter(x=>x));
+        const monthData = m => arr((window.archiveData||{})[m]);
+        const baseStudents = () => arr(window.students);
+        const payList = () => arr(window.payments);
+        const expList = () => arr(window.expenses);
+        const baseFind = n => baseStudents().find(b => String(b.name).trim().toLowerCase() === String(n).trim().toLowerCase());
+
+        /* ---------- TOAST / SYNC ---------- */
         function toast(msg, type='ok') {
-            const t = document.createElement('div');
-            t.className = 'toast ' + type;
-            t.innerText = msg;
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 3000);
+            const t = document.createElement('div'); t.className='toast '+type; t.innerText=msg;
+            document.body.appendChild(t); setTimeout(()=>t.remove(),3000);
         }
-
         function updateSyncIndicator() {
-            const el = document.getElementById('sync-status');
-            if (!el) return;
-            const map = { yuklanmoqda:'☁️ Ulanmoqda...', ulandi:'☁️ Bulutga ulangan',
-                          saqlanmoqda:'⏳ Saqlanmoqda...', saqlandi:'✅ Saqlandi', xato:'⚠️ Ulanish xatosi' };
+            const el = document.getElementById('sync-status'); if (!el) return;
+            const map = { yuklanmoqda:'☁️ Ulanmoqda...', ulandi:'☁️ Ulangan', saqlandi:'✅ Saqlandi', xato:'⚠️ Ulanish xatosi' };
             el.innerText = map[window.cloudStatus] || '';
         }
 
-        /* ---------- KIRISH (TUZATILGAN — Firebase ishlamasa ham ishlaydi) ---------- */
+        /* ---------- KIRISH ---------- */
         function handleLogin() {
             try {
-                const cfg = window.config || { user: 'admin', pass: '123' };
+                const cfg = window.config || { user:'admin', pass:'123' };
                 const u = document.getElementById('username').value.trim();
                 const p = document.getElementById('password').value;
                 if (u === cfg.user && p === cfg.pass) {
-                    sessionStorage.setItem('isAuth', 'true');
-                    document.getElementById('login-overlay').style.display = 'none';
-                    document.getElementById('main-content').style.display = 'block';
-                    updateSyncIndicator();
-                    renderTable();
-                    toast("Xush kelibsiz! 👋");
-                } else {
-                    alert("Login yoki parol xato!\n\nAgar parolni o'zgartirgan bo'lsangiz — shuni kiriting.\nStandart: admin / 123");
-                }
-            } catch (e) {
-                alert("Texnik xatolik: " + e.message);
-            }
+                    sessionStorage.setItem('isAuth','true');
+                    showMain(); toast("Xush kelibsiz! 👋");
+                } else alert("Login yoki parol xato!\nStandart: admin / 123");
+            } catch (e) { alert("Texnik xatolik: " + e.message); }
         }
-
-        function toggleRecover(show) {
-            document.getElementById('recover-form').style.display = show ? 'block' : 'none';
+        function showMain() {
+            document.getElementById('login-overlay').style.display='none';
+            document.getElementById('main-content').style.display='block';
+            updateSyncIndicator(); renderCurrentTab();
         }
-
+        function toggleRecover(s){ document.getElementById('recover-form').style.display = s?'block':'none'; }
         function handleRecover() {
-            const phone = document.getElementById('rec-phone').value.trim();
-            if (phone && phone === window.config.phone) {
-                alert("Login: " + window.config.user + "\nParol: " + window.config.pass);
-            } else {
-                alert("Bu telefon raqam ro'yxatda yo'q!\nSozlamalarda kiritilgan raqam: " + (window.config.phone || 'kiritilmagan'));
-            }
+            const ph = document.getElementById('rec-phone').value.trim();
+            if (ph && ph === (window.config.phone||'')) alert("Login: "+window.config.user+"\nParol: "+window.config.pass);
+            else alert("Bu raqam ro'yxatda yo'q!");
+        }
+        function logout(){ sessionStorage.clear(); location.reload(); }
+
+        /* ---------- BO'LIMLAR ---------- */
+        function switchTab(t) {
+            currentTab = t;
+            document.querySelectorAll('.tab-page').forEach(p => p.style.display='none');
+            document.getElementById('tab-'+t).style.display='block';
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tb-'+t).classList.add('active');
+            renderCurrentTab();
+        }
+        function renderCurrentTab() {
+            if (sessionStorage.getItem('isAuth') !== 'true') return;
+            ({ hisob:renderTable, davomat:renderAttendance, qarzdorlar:renderDebts,
+               yillik:renderYear, tolovlar:renderPayments, xarajatlar:renderExpenses,
+               baza:renderStudents } )[currentTab]();
         }
 
-        function logout() { sessionStorage.clear(); location.reload(); }
-
-        /* ---------- JADVAL ---------- */
+        /* ---------- HISOB JADVALI ---------- */
         function renderTable() {
-            const m = document.getElementById('month-select').value;
-            const search = document.getElementById('search-input').value.toLowerCase();
-            const tbody = document.getElementById('table-body');
-            const data = window.archiveData[m] || [];
-            let tP = 0, tF = 0, tDebt = 0, attCount = 0;
+            const m = document.getElementById('month-select')?.value; if (!m) return;
+            const search = (document.getElementById('search-input').value||'').toLowerCase();
+            const clsF = document.getElementById('cls-filter').value;
+            const data = monthData(m);
+            let tP=0, tF=0, tDebt=0, attC=0;
             const counts = { paid:0, partial:0, debt:0 };
-
             data.forEach(s => {
-                tP += +s.price || 0; tF += +s.food || 0;
-                if (s.att) attCount++;
-                if (s.st === 'st-paid') counts.paid++;
-                else if (s.st === 'st-partial') counts.partial++;
-                else { counts.debt++; tDebt += (+s.price||0) - (+s.food||0); }
+                tP += +s.price||0; tF += +s.food||0;
+                if (s.att) attC++;
+                if (s.st==='st-paid') counts.paid++;
+                else if (s.st==='st-partial') counts.partial++;
+                else { counts.debt++; tDebt += (+s.price||0)-(+s.food||0); }
             });
             const tN = tP - tF;
 
-            let rows = data.map((s, i) => ({ ...s, _i: i }));
+            let rows = data.map((s,i)=>({ ...s, _i:i }));
             if (search) rows = rows.filter(s => String(s.name).toLowerCase().includes(search));
-            if (sortKey) {
-                rows.sort((a, b) => {
-                    const x = sortKey === 'net' ? (a.price - a.food) : a[sortKey];
-                    const y = sortKey === 'net' ? (b.price - b.food) : b[sortKey];
-                    if (sortKey === 'name') return sortDir * String(x).localeCompare(String(y), 'uz');
-                    return sortDir * ((+x || 0) - (+y || 0));
-                });
-            }
-
-            tbody.innerHTML = rows.map(s => {
-                const net = (+s.price || 0) - (+s.food || 0);
-                return `<tr class="${s.st === 'st-debt' ? 'row-debt' : ''}">
-                    <td>${s._i + 1}</td>
-                    <td><button class="attendance-btn ${s.att ? 'present' : 'absent'}"
-                        onclick="toggleAtt(${s._i})">${s.att ? '✅' : '❌'}</button></td>
-                    <td><input class="name-input" value="${esc(s.name)}"
-                        onchange="update(${s._i}, 'name', this.value)" style="border:none; background:none; margin:0;"></td>
-                    <td><input type="number" value="${s.price}"
-                        onchange="update(${s._i}, 'price', this.value)" style="border:none; width:100px; margin:0;"></td>
-                    <td><input type="number" value="${s.food}"
-                        onchange="update(${s._i}, 'food', this.value)" style="border:none; width:100px; margin:0;"></td>
-                    <td><b>${net.toLocaleString()}</b></td>
-                    <td><button class="status-badge ${s.st}" onclick="nextStatus(${s._i})">${getStatusLabel(s.st)}</button></td>
-                    <td style="white-space:nowrap;">
-                        <button class="icon-btn" title="Nusxalash" onclick="duplicate(${s._i})">📋</button>
-                        <button class="icon-btn" title="O'chirish" onclick="delStudent(${s._i})">🗑</button>
-                    </td>
-                </tr>`;
-            }).join('') || `<tr><td colspan="8" style="text-align:center; color:var(--sub); padding:30px;">
-                Ma'lumot yo'q — "+ Talaba" tugmasini bosing</td></tr>`;
-
-            document.getElementById('s-total').innerText = tP.toLocaleString();
-            document.getElementById('s-food').innerText = tF.toLocaleString();
-            document.getElementById('s-net').innerText = tN.toLocaleString();
-            document.getElementById('s-count').innerText = data.length;
-            document.getElementById('s-att').innerText =
-                (data.length ? Math.round(attCount / data.length * 100) : 0) + '%';
-            document.getElementById('s-debt').innerText = tDebt.toLocaleString();
-
-            document.getElementById('ft-price').innerText = tP.toLocaleString();
-            document.getElementById('ft-food').innerText = tF.toLocaleString();
-            document.getElementById('ft-net').innerText = tN.toLocaleString();
-
-            ['name','price','net'].forEach(k => {
-                document.getElementById('arr-' + k).innerText = (sortKey === k) ? (sortDir > 0 ? '▲' : '▼') : '';
+            if (clsF) rows = rows.filter(s => { const b = baseFind(s.name); return b && String(b.cls||'') === clsF; });
+            if (sortKey) rows.sort((a,b) => {
+                const x = sortKey==='net' ? (a.price-a.food) : a[sortKey];
+                const y = sortKey==='net' ? (b.price-b.food) : b[sortKey];
+                return sortKey==='name' ? sortDir*String(x).localeCompare(String(y),'uz') : sortDir*((+x||0)-(+y||0));
             });
 
+            document.getElementById('table-body').innerHTML = rows.map(s => {
+                const net = (+s.price||0)-(+s.food||0);
+                return `<tr class="${s.st==='st-debt'?'row-debt':''}">
+                    <td>${s._i+1}</td>
+                    <td><button class="attendance-btn ${s.att?'present':'absent'}" onclick="toggleAtt(${s._i})">${s.att?'✅':'❌'}</button></td>
+                    <td><input class="name-input" value="${esc(s.name)}" onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:100%;"></td>
+                    <td><input type="number" value="${s.price}" onchange="update(${s._i},'price',this.value)" style="border:none; width:100px; margin:0;"></td>
+                    <td><input type="number" value="${s.food}" onchange="update(${s._i},'food',this.value)" style="border:none; width:100px; margin:0;"></td>
+                    <td><b>${fmt(net)}</b></td>
+                    <td><button class="status-badge ${s.st}" onclick="nextStatus(${s._i})">${getStatusLabel(s.st)}</button></td>
+                    <td style="white-space:nowrap;">
+                        <button class="icon-btn" title="Kartochka" onclick="showCard('${esc(s.name)}')">👤</button>
+                        <button class="icon-btn" title="Nusxa" onclick="duplicate(${s._i})">📋</button>
+                        <button class="icon-btn" title="O'chirish" onclick="delStudent(${s._i})">🗑</button>
+                    </td></tr>`;
+            }).join('') || `<tr><td colspan="8" style="text-align:center; color:var(--sub); padding:30px;">Ma'lumot yo'q — «+ Talaba» yoki «Bazadan to'ldirish» tugmasini bosing</td></tr>`;
+
+            document.getElementById('s-total').innerText = fmt(tP);
+            document.getElementById('s-food').innerText = fmt(tF);
+            document.getElementById('s-net').innerText = fmt(tN);
+            document.getElementById('s-count').innerText = data.length;
+            document.getElementById('s-att').innerText = (data.length?Math.round(attC/data.length*100):0)+'%';
+            document.getElementById('s-debt').innerText = fmt(tDebt);
+            document.getElementById('ft-price').innerText = fmt(tP);
+            document.getElementById('ft-food').innerText = fmt(tF);
+            document.getElementById('ft-net').innerText = fmt(tN);
+            ['name','price','net'].forEach(k => {
+                document.getElementById('arr-'+k).innerText = (sortKey===k)?(sortDir>0?'▲':'▼'):'';
+            });
             updateCharts(tP, tF, counts);
             updateSyncIndicator();
         }
 
-        function setSort(k) {
-            if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
-            renderTable();
-        }
+        function setSort(k){ if (sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=1; } renderTable(); }
 
-        /* ---------- GRAFIKLAR ---------- */
         function updateCharts(tP, tF, counts) {
             const dark = document.body.classList.contains('dark-mode');
-            const textC = dark ? '#94a3b8' : '#64748b';
-            const gridC = dark ? '#334155' : '#e2e8f0';
-
+            const textC = dark?'#94a3b8':'#64748b', gridC = dark?'#334155':'#e2e8f0';
             if (myChart) myChart.destroy();
             myChart = new Chart(document.getElementById('barChart'), {
-                type: 'bar',
-                data: { labels: ['Tushum', 'Chiqim', 'Foyda'],
-                    datasets: [{ data: [tP, tF, tP - tF],
-                        backgroundColor: ['#6366f1', '#ef4444', '#10b981'], borderRadius: 10 }] },
-                options: { maintainAspectRatio:false,
-                    plugins: { legend: { display:false },
-                        tooltip: { callbacks: { label: c => c.raw.toLocaleString() + " so'm" } } },
-                    scales: { y: { ticks: { color:textC }, grid: { color:gridC } },
-                              x: { ticks: { color:textC }, grid: { display:false } } } }
+                type:'bar',
+                data:{ labels:['Tushum','Chiqim','Foyda'], datasets:[{ data:[tP,tF,tP-tF], backgroundColor:['#6366f1','#ef4444','#10b981'], borderRadius:10 }] },
+                options:{ maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+" so'm"}} },
+                    scales:{ y:{ ticks:{color:textC}, grid:{color:gridC} }, x:{ ticks:{color:textC}, grid:{display:false} } } }
             });
-
             if (donutChart) donutChart.destroy();
             donutChart = new Chart(document.getElementById('donutChart'), {
-                type: 'doughnut',
-                data: { labels: ["To'landi ✅", "Qisman 🟡", "Qarz 🔴"],
-                    datasets: [{ data: [counts.paid, counts.partial, counts.debt],
-                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'], borderWidth: 0 }] },
-                options: { maintainAspectRatio:false, cutout:'62%',
-                    plugins: { legend: { position:'bottom', labels:{ color:textC, usePointStyle:true } } } }
+                type:'doughnut',
+                data:{ labels:["To'landi ✅","Qisman 🟡","Qarz 🔴"], datasets:[{ data:[counts.paid,counts.partial,counts.debt], backgroundColor:['#10b981','#f59e0b','#ef4444'], borderWidth:0 }] },
+                options:{ maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ position:'bottom', labels:{color:textC, usePointStyle:true} } } }
             });
         }
 
-        /* ---------- AMALLAR ---------- */
-        function toggleAtt(i) {
-            const m = document.getElementById('month-select').value;
-            const s = window.archiveData[m][i];
-            s.att = !s.att;
-            if (!s.att) s.food = 0;
+        /* ---------- HISOB AMALLARI ---------- */
+        function toggleAtt(i){
+            const m = document.getElementById('month-select').value, s = monthData(m)[i]; if (!s) return;
+            s.att = !s.att; if (!s.att) s.food = 0;
             window.saveToCloud(); renderTable();
         }
-
-        function nextStatus(i) {
-            const m = document.getElementById('month-select').value;
-            const modes = ['st-debt', 'st-partial', 'st-paid'];
-            const s = window.archiveData[m][i];
-            s.st = modes[(modes.indexOf(s.st) + 1) % 3];
+        function nextStatus(i){
+            const m = document.getElementById('month-select').value, s = monthData(m)[i]; if (!s) return;
+            const modes = ['st-debt','st-partial','st-paid'];
+            s.st = modes[(modes.indexOf(s.st)+1)%3];
             window.saveToCloud(); renderTable();
         }
-
-        function addStudent() {
+        function addStudent(){
             const m = document.getElementById('month-select').value;
             if (!window.archiveData[m]) window.archiveData[m] = [];
-            const dp = parseFloat(window.config.defaultPrice) || 0;
+            const dp = parseFloat(window.config.defaultPrice)||0;
             window.archiveData[m].push({ name:'', price:dp, food:0, st:'st-debt', att:true });
             window.saveToCloud(); renderTable();
             const names = document.querySelectorAll('.name-input');
-            if (names.length) names[names.length - 1].focus();
+            if (names.length) names[names.length-1].focus();
         }
-
-        function duplicate(i) {
+        function duplicate(i){
             const m = document.getElementById('month-select').value;
-            const copy = { ...window.archiveData[m][i], name: window.archiveData[m][i].name + ' (nusxa)' };
-            window.archiveData[m].splice(i + 1, 0, copy);
+            const copy = { ...monthData(m)[i], name: monthData(m)[i].name+' (nusxa)' };
+            window.archiveData[m].splice(i+1, 0, copy);
             window.saveToCloud(); renderTable(); toast("Nusxa yaratildi 📋");
         }
-
-        function delStudent(i) {
+        function delStudent(i){
             if (!confirm("O'chirilsinmi?")) return;
             const m = document.getElementById('month-select').value;
-            window.archiveData[m].splice(i, 1);
+            window.archiveData[m].splice(i,1);
             window.saveToCloud(); renderTable();
         }
-
-        function update(i, f, v) {
+        function update(i, f, v){
             const m = document.getElementById('month-select').value;
-            window.archiveData[m][i][f] = (f === 'name') ? v : parseFloat(v) || 0;
+            monthData(m)[i][f] = (f==='name') ? v : parseFloat(v)||0;
             window.saveToCloud(); renderTable();
         }
-
-        function getStatusLabel(st) {
-            return st === 'st-paid' ? "TO'LANDI" : st === 'st-partial' ? 'QISMAN' : 'QARZ';
-        }
-
-        function markAll(att) {
+        function getStatusLabel(st){ return st==='st-paid'?"TO'LANDI":st==='st-partial'?'QISMAN':'QARZ'; }
+        function markAll(att){
             const m = document.getElementById('month-select').value;
-            (window.archiveData[m] || []).forEach(s => { s.att = att; if (!att) s.food = 0; });
+            monthData(m).forEach(s => { s.att = att; if (!att) s.food = 0; });
             window.saveToCloud(); renderTable(); toast("Davomat belgilandi ✅");
         }
-
-        function clearMonth() {
+        function clearMonth(){
             const m = document.getElementById('month-select').value;
-            if (!confirm(m + " oyidagi BARCHA ma'lumotlar o'chirilsinmi?! Buni qaytarib bo'lmaydi!")) return;
-            window.archiveData[m] = [];
+            if (!confirm(m+" oyidagi BARCHA ma'lumot o'chirilsinmi?!")) return;
+            window.archiveData[m] = []; window.saveToCloud(); renderTable();
+        }
+        function copyPrevMonth(){
+            const m = document.getElementById('month-select').value, idx = MONTHS.indexOf(m);
+            if (idx<=0) return toast("Yanvardan oldingi oy yo'q!",'err');
+            const prev = monthData(MONTHS[idx-1]);
+            if (!prev.length) return toast("O'tgan oyda ma'lumot yo'q!",'err');
+            if (!confirm(MONTHS[idx-1]+" dagi "+prev.length+" ta o'quvchi "+m+" ga ko'chirilsinmi?")) return;
+            window.archiveData[m] = prev.map(s=>({ ...s, st:'st-debt', att:true }));
+            window.saveToCloud(); renderTable(); toast("Ko'chirildi ✅");
+        }
+        function quickFillFromBase(){
+            const m = document.getElementById('month-select').value;
+            const base = baseStudents();
+            if (!base.length) return toast("Baza bo'sh! Avval «👨‍🎓 Baza» bo'limida o'quvchi qo'shing.",'err');
+            if (!window.archiveData[m]) window.archiveData[m] = [];
+            let qoshildi = 0;
+            base.forEach(b => {
+                const bor = monthData(m).some(s => String(s.name).trim().toLowerCase() === String(b.name).trim().toLowerCase());
+                if (!bor) { window.archiveData[m].push({ name:b.name, price:+b.price||0, food:0, st:'st-debt', att:true }); qoshildi++; }
+            });
             window.saveToCloud(); renderTable();
+            toast(qoshildi ? qoshildi+" ta o'quvchi qo'shildi ✅" : "Barcha o'quvchilar allaqachon bor 😊");
         }
 
-        function copyPrevMonth() {
-            const m = document.getElementById('month-select').value;
-            const idx = MONTHS.indexOf(m);
-            if (idx <= 0) return toast("Yanvardan oldingi oy yo'q!", 'err');
-            const prev = window.archiveData[MONTHS[idx - 1]] || [];
-            if (!prev.length) return toast("O'tgan oyda ma'lumot yo'q!", 'err');
-            if (!confirm(MONTHS[idx-1] + " dagi " + prev.length + " ta o'quvchi " + m + " ga ko'chirilsinmi?")) return;
-            window.archiveData[m] = prev.map(s => ({ ...s, st:'st-debt', att:true }));
-            window.saveToCloud(); renderTable(); toast("O'quvchilar ko'chirildi ✅");
+        /* ---------- KUNLIK DAVOMAT ---------- */
+        function renderAttendance(){
+            const dateEl = document.getElementById('att-date'); if (!dateEl) return;
+            if (!dateEl.value) dateEl.value = todayStr();
+            const date = dateEl.value;
+            const day = (window.attendance||{})[date] || {};
+            const names = [];
+            baseStudents().forEach(b => names.push(b.name));
+            MONTHS.forEach(m => monthData(m).forEach(s => {
+                if (s.name && !names.some(n => n.toLowerCase() === String(s.name).toLowerCase())) names.push(s.name);
+            }));
+            const list = document.getElementById('att-list');
+            if (!names.length) { list.innerHTML = '<div class="chip">O\'quvchilar yo\'q — avval Baza yoki Hisob bo\'limida kiriting</div>'; }
+            else {
+                list.innerHTML = names.map(n => {
+                    const st = day[n];
+                    return `<div class="att-row">
+                        <b>${esc(n)}</b>
+                        <div style="display:flex; gap:6px;">
+                            <button class="att-big ${st===true?'on':''}" onclick="setDayAtt('${esc(n)}',true)">✅ Keldi</button>
+                            <button class="att-big ${st===false?'off':''}" onclick="setDayAtt('${esc(n)}',false)">❌ Kelmadi</button>
+                        </div></div>`;
+                }).join('');
+            }
+            const keldi = Object.values(day).filter(v=>v===true).length;
+            const kelmadi = Object.values(day).filter(v=>v===false).length;
+            document.getElementById('att-summary').innerText = `📅 ${date} — ✅ ${keldi} keldi, ❌ ${kelmadi} kelmadi`;
+
+            // Oylik jadval
+            const ym = date.slice(0,7);
+            const tbody = document.getElementById('att-month-body'); const rows = [];
+            names.forEach(n => {
+                let k=0, kel=0;
+                Object.keys(window.attendance||{}).forEach(d => {
+                    if (d.startsWith(ym) && window.attendance[d][n] !== undefined) {
+                        k++; if (window.attendance[d][n] === true) kel++;
+                    }
+                });
+                if (k) rows.push(`<tr><td><b>${esc(n)}</b></td><td>${k} kun</td><td style="color:var(--success)"><b>${kel}</b></td><td style="color:var(--danger)"><b>${k-kel}</b></td></tr>`);
+            });
+            tbody.innerHTML = rows.join('') || '<tr><td colspan="4" style="color:var(--sub); text-align:center;">Bu oyda davomat yozilmagan</td></tr>';
+        }
+        function setDayAtt(name, val){
+            const date = document.getElementById('att-date').value || todayStr();
+            if (!window.attendance[date]) window.attendance[date] = {};
+            if (window.attendance[date][name] === val) delete window.attendance[date][name];
+            else window.attendance[date][name] = val;
+            window.saveAttendance(); renderAttendance();
+        }
+        function markAllDay(val){
+            const date = document.getElementById('att-date').value || todayStr();
+            if (!window.attendance[date]) window.attendance[date] = {};
+            const names = new Set();
+            baseStudents().forEach(b => names.add(b.name));
+            monthData(document.getElementById('month-select').value).forEach(s => { if (s.name) names.add(s.name); });
+            names.forEach(n => window.attendance[date][n] = val);
+            window.saveAttendance(); renderAttendance(); toast("Belgilandi ✅");
+        }
+
+        /* ---------- QARZDORLAR ---------- */
+        function renderDebts(){
+            const rows = []; let total = 0;
+            MONTHS.forEach(m => monthData(m).forEach(s => {
+                if (s.st === 'st-debt' && s.name) {
+                    const debt = (+s.price||0)-(+s.food||0);
+                    if (debt > 0) { rows.push({ m, name:s.name, debt }); total += debt; }
+                }
+            }));
+            document.getElementById('debt-body').innerHTML = rows.map((r,i) =>
+                `<tr class="row-debt"><td><b>${r.m}</b></td><td>${esc(r.name)}</td>
+                 <td style="color:var(--danger)"><b>${fmt(r.debt)}</b></td>
+                 <td style="white-space:nowrap;">
+                    <button class="btn btn-success" style="padding:6px 10px; font-size:12px;" onclick="waSend(${i})">📱 WhatsApp</button>
+                    <button class="icon-btn" onclick="showCard('${esc(r.name)}')">👤</button>
+                 </td></tr>`).join('')
+                || '<tr><td colspan="4" style="text-align:center; color:var(--success); padding:30px;">🎉 Qarzdor yo\'q — hammasi to\'lagan!</td></tr>';
+            document.getElementById('debt-ft').innerText = fmt(total);
+            document.getElementById('d-total').innerText = fmt(total);
+            document.getElementById('d-count').innerText = rows.length;
+            window._debts = rows;
+        }
+        function waSend(i){
+            const r = window._debts[i];
+            const b = baseFind(r.name);
+            let phone = (b && b.phone) ? String(b.phone).replace(/[^0-9]/g,'') : '';
+            if (!phone) phone = prompt(r.name+" uchun telefon raqam (998XX...)?:") || '';
+            phone = phone.replace(/[^0-9]/g,'');
+            if (!phone) return;
+            const text = encodeURIComponent(`Assalomu alaykum! ${r.m} oyi uchun ${r.name} nomidagi to'lov: ${fmt(r.debt)} so'm qarz qoldi. Iltimos, to'lovni amalga oshiring. Hurmat bilan — ${window.config.orgName||'Maktab'}`);
+            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+        }
+
+        /* ---------- YILLIK ---------- */
+        function renderYear(){
+            const tP=[], tF=[], tE=[], tN=[], tC=[];
+            let sP=0, sF=0, sE=0, sC=0;
+            MONTHS.forEach((m,i) => {
+                const data = monthData(m);
+                let p=0, f=0;
+                data.forEach(s => { p += +s.price||0; f += +s.food||0; });
+                const mm = String(i+1).padStart(2,'0');
+                let e = 0;
+                expList().forEach(x => { if (String(x.date||'').slice(5,7) === mm) e += +x.amount||0; });
+                tP.push(p); tF.push(f); tE.push(e); tN.push(p-f-e); tC.push(data.length);
+                sP+=p; sF+=f; sE+=e; sC+=data.length;
+            });
+            const dark = document.body.classList.contains('dark-mode');
+            const textC = dark?'#94a3b8':'#64748b', gridC = dark?'#334155':'#e2e8f0';
+            if (yearChart) yearChart.destroy();
+            yearChart = new Chart(document.getElementById('yearChart'), {
+                type:'bar',
+                data:{ labels:MONTHS, datasets:[
+                    { label:'Tushum', data:tP, backgroundColor:'#6366f1', borderRadius:6 },
+                    { label:'Ovqat', data:tF, backgroundColor:'#ef4444', borderRadius:6 },
+                    { label:'Xarajat', data:tE, backgroundColor:'#f59e0b', borderRadius:6 },
+                    { label:'Sof foyda', data:tN, backgroundColor:'#10b981', borderRadius:6 } ] },
+                options:{ maintainAspectRatio:false,
+                    plugins:{ legend:{ labels:{ color:textC, usePointStyle:true } },
+                        tooltip:{ callbacks:{ label:c=>c.dataset.label+": "+c.raw.toLocaleString()+" so'm" } } },
+                    scales:{ y:{ ticks:{ color:textC }, grid:{ color:gridC } }, x:{ ticks:{ color:textC }, grid:{ display:false } } } }
+            });
+            document.getElementById('y-p').innerText = fmt(sP);
+            document.getElementById('y-f').innerText = fmt(sF);
+            document.getElementById('y-e').innerText = fmt(sE);
+            document.getElementById('y-n').innerText = fmt(sP-sF-sE);
+            document.getElementById('year-body').innerHTML = MONTHS.map((m,i) =>
+                `<tr><td><b>${m}</b></td><td>${tC[i]}</td><td>${fmt(tP[i])}</td><td>${fmt(tF[i])}</td><td>${fmt(tE[i])}</td>
+                 <td style="color:${tN[i]>=0?'var(--success)':'var(--danger)'}"><b>${fmt(tN[i])}</b></td></tr>`).join('');
+            document.getElementById('yft-c').innerText = sC;
+            document.getElementById('yft-p').innerText = fmt(sP);
+            document.getElementById('yft-f').innerText = fmt(sF);
+            document.getElementById('yft-e').innerText = fmt(sE);
+            document.getElementById('yft-n').innerText = fmt(sP-sF-sE);
+        }
+
+        /* ---------- TO'LOVLAR JURNALI + CHEK ---------- */
+        function renderPayments(){
+            const dl = document.getElementById('names-list'); if (!dl) return;
+            const names = new Set(baseStudents().map(b=>b.name));
+            MONTHS.forEach(m => monthData(m).forEach(s => { if (s.name) names.add(s.name); }));
+            dl.innerHTML = [...names].map(n=>`<option value="${esc(n)}">`).join('');
+            const list = payList();
+            let total = 0;
+            document.getElementById('pay-body').innerHTML = list.map((p,i) => {
+                total += +p.amount||0;
+                return `<tr><td>${p.date||''}</td><td><b>${esc(p.name)}</b></td>
+                    <td style="color:var(--success)"><b>${fmt(p.amount)}</b></td><td>${esc(p.note||'')}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="icon-btn" title="Chek" onclick="printReceipt(${i})">🖨</button>
+                        <button class="icon-btn" title="O'chirish" onclick="delPayment(${i})">🗑</button>
+                    </td></tr>`;
+            }).join('') || '<tr><td colspan="5" style="text-align:center; color:var(--sub); padding:20px;">To\'lovlar yo\'q</td></tr>';
+            document.getElementById('pay-ft').innerText = fmt(total);
+        }
+        function addPayment(){
+            const name = document.getElementById('pay-name').value.trim();
+            const amount = parseFloat(document.getElementById('pay-amount').value)||0;
+            const date = document.getElementById('pay-date').value || todayStr();
+            const note = document.getElementById('pay-note').value.trim();
+            if (!name || !amount) return toast("Ism va summani kiriting!",'err');
+            if (!window.payments) window.payments = [];
+            window.payments.unshift({ name, amount, date, note });
+            window.savePayments(); renderPayments();
+            document.getElementById('pay-amount').value=''; document.getElementById('pay-note').value='';
+            toast("To'lov qayd etildi ✅ Chek chiqarish uchun 🖨 bosing");
+        }
+        function delPayment(i){
+            if (!confirm("O'chirilsinmi?")) return;
+            window.payments.splice(i,1); window.savePayments(); renderPayments();
+        }
+        function printReceipt(i){
+            const p = payList()[i]; if (!p) return;
+            const org = window.config.orgName || 'Maktab';
+            const w = window.open('', '_blank', 'width=420,height=600');
+            w.document.write(`<html><head><title>Chek</title><style>
+                body{font-family:Arial; padding:24px; color:#111;}
+                .box{border:2px dashed #999; border-radius:14px; padding:24px; max-width:340px; margin:0 auto;}
+                h2{margin:0 0 4px; text-align:center;} .sub{text-align:center; color:#555; font-size:13px; margin-bottom:18px;}
+                .row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #eee; font-size:14px;}
+                .amt{font-size:22px; font-weight:800; text-align:center; margin:16px 0; color:#065f46;}
+                .sig{display:flex; justify-content:space-between; margin-top:36px; font-size:13px; color:#555;}
+                .sig div{width:45%; border-top:1px solid #333; text-align:center; padding-top:4px;}
+                </style></head><body><div class="box">
+                <h2>🧾 TO'LOV CHEKI</h2><div class="sub">${esc(org)}</div>
+                <div class="row"><span>Sana:</span><b>${p.date||''}</b></div>
+                <div class="row"><span>Kimdan:</span><b>${esc(p.name)}</b></div>
+                <div class="row"><span>Muddat:</span><b>${esc(p.note||'—')}</b></div>
+                <div class="row"><span>Chek №:</span><b>${String(Date.now()).slice(-6)}</b></div>
+                <div class="amt">${fmt(p.amount)} so'm</div>
+                <div class="sig"><div>Topshirdi</div><div>Qabul qildi</div></div>
+                </div><script>window.onload=()=>window.print()<\/script></body></html>`);
+            w.document.close();
+        }
+
+        /* ---------- XARAJATLAR ---------- */
+        function renderExpenses(){
+            const list = expList(); let total = 0;
+            document.getElementById('exp-body').innerHTML = list.map((x,i) => {
+                total += +x.amount||0;
+                return `<tr><td>${x.date||''}</td><td><b>${esc(x.title)}</b></td>
+                    <td style="color:var(--warn)"><b>${fmt(x.amount)}</b></td>
+                    <td><button class="icon-btn" onclick="delExpense(${i})">🗑</button></td></tr>`;
+            }).join('') || '<tr><td colspan="4" style="text-align:center; color:var(--sub); padding:20px;">Xarajatlar yo\'q</td></tr>';
+            document.getElementById('exp-ft').innerText = fmt(total);
+        }
+        function addExpense(){
+            const title = document.getElementById('exp-title').value.trim();
+            const amount = parseFloat(document.getElementById('exp-amount').value)||0;
+            const date = document.getElementById('exp-date').value || todayStr();
+            if (!title || !amount) return toast("Nima uchun ekanini va summani kiriting!",'err');
+            if (!window.expenses) window.expenses = [];
+            window.expenses.unshift({ title, amount, date });
+            window.saveExpenses(); renderExpenses();
+            document.getElementById('exp-title').value=''; document.getElementById('exp-amount').value='';
+            toast("Xarajat qayd etildi ✅");
+        }
+        function delExpense(i){
+            if (!confirm("O'chirilsinmi?")) return;
+            window.expenses.splice(i,1); window.saveExpenses(); renderExpenses();
+        }
+
+        /* ---------- O'QUVCHILAR BAZASI ---------- */
+        function renderStudents(){
+            const tbody = document.getElementById('base-body'); if (!tbody) return;
+            const list = baseStudents();
+            tbody.innerHTML = list.map((b,i) =>
+                `<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.cls||'—')}</td><td>${fmt(b.price)}</td><td>${esc(b.phone||'—')}</td>
+                 <td style="white-space:nowrap;">
+                    <button class="icon-btn" title="Kartochka" onclick="showCard('${esc(b.name)}')">👤</button>
+                    <button class="icon-btn" title="Tahrirlash" onclick="editBase(${i})">✏️</button>
+                    <button class="icon-btn" title="O'chirish" onclick="delBase(${i})">🗑</button>
+                 </td></tr>`).join('')
+                || '<tr><td colspan="5" style="text-align:center; color:var(--sub); padding:20px;">Baza bo\'sh — yuqoridan o\'quvchi qo\'shing</td></tr>';
+            updateClsFilter();
+        }
+        function updateClsFilter(){
+            const sel = document.getElementById('cls-filter'); if (!sel) return;
+            const cur = sel.value;
+            const classes = [...new Set(baseStudents().map(b=>String(b.cls||'').trim()).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="">🎓 Barcha sinflar</option>' + classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+            if (classes.includes(cur)) sel.value = cur;
+        }
+        function addStudentToBase(){
+            const name = document.getElementById('st-name').value.trim();
+            const cls = document.getElementById('st-cls').value.trim();
+            const price = parseFloat(document.getElementById('st-price').value)||0;
+            const phone = document.getElementById('st-phone').value.trim();
+            if (!name) return toast("Ismni kiriting!",'err');
+            if (!window.students) window.students = [];
+            window.students.push({ name, cls, price, phone });
+            window.saveStudents(); renderStudents();
+            document.getElementById('st-name').value=''; document.getElementById('st-price').value=''; document.getElementById('st-phone').value='';
+            toast("Bazaga qo'shildi ✅ Endi har oy «Bazadan to'ldirish» bilan chiqariladi");
+        }
+        function editBase(i){
+            const b = baseStudents()[i];
+            const name = prompt("Ism:", b.name); if (name===null) return;
+            const cls = prompt("Sinf:", b.cls||''); if (cls===null) return;
+            const price = prompt("Oylik narx:", b.price); if (price===null) return;
+            const phone = prompt("Telefon:", b.phone||''); if (phone===null) return;
+            window.students[i] = { name:name.trim()||b.name, cls:cls.trim(), price:parseFloat(price)||0, phone:phone.trim() };
+            window.saveStudents(); renderStudents();
+        }
+        function delBase(i){
+            if (!confirm(baseStudents()[i].name+" bazadan o'chirilsinmi? (Oylardagi yozuvlar qoladi)")) return;
+            window.students.splice(i,1); window.saveStudents(); renderStudents();
+        }
+
+        /* ---------- O'QUVCHI KARTOCHKASI ---------- */
+        function showCard(name){
+            document.getElementById('card-name').innerText = name;
+            const b = baseFind(name);
+            let html = '';
+            if (b) html += `<div class="chip" style="display:inline-block; margin-bottom:10px;">Sinf: ${esc(b.cls||'—')} | Narx: ${fmt(b.price)} | Tel: ${esc(b.phone||'—')}</div>`;
+            html += '<h4 style="margin:10px 0 6px;">📅 Oylik hisob</h4><table style="min-width:0;"><thead><tr><th>Oy</th><th>Narx</th><th>Ovqat</th><th>Holat</th></tr></thead><tbody>';
+            let anyM = false;
+            MONTHS.forEach(m => {
+                const s = monthData(m).find(x => String(x.name).toLowerCase() === String(name).toLowerCase());
+                if (s) { anyM = true; html += `<tr><td>${m}</td><td>${fmt(s.price)}</td><td>${fmt(s.food)}</td><td>${getStatusLabel(s.st)}</td></tr>`; }
+            });
+            if (!anyM) html += '<tr><td colspan="4" style="color:var(--sub)">Yozuv yo\'q</td></tr>';
+            html += '</tbody></table>';
+            let kel=0, kelma=0;
+            Object.keys(window.attendance||{}).forEach(d => {
+                const v = window.attendance[d][name];
+                if (v === true) kel++; else if (v === false) kelma++;
+            });
+            html += `<h4 style="margin:14px 0 6px;">📅 Davomat</h4><div class="chip">✅ ${kel} kun keldi | ❌ ${kelma} kun kelmadi</div>`;
+            const pays = payList().filter(p => String(p.name).toLowerCase() === String(name).toLowerCase());
+            const pTotal = pays.reduce((a,p)=>a+(+p.amount||0),0);
+            html += `<h4 style="margin:14px 0 6px;">🧾 To'lovlar (jami: ${fmt(pTotal)} so'm)</h4>`;
+            html += pays.length ? pays.slice(0,10).map(p=>`<div class="chip" style="display:block; margin-bottom:4px;">${p.date||''} — ${fmt(p.amount)} so'm ${esc(p.note||'')}</div>`).join('')
+                 : '<div class="chip">To\'lov yozuvi yo\'q</div>';
+            document.getElementById('card-body').innerHTML = html;
+            document.getElementById('modal-card').style.display = 'flex';
         }
 
         /* ---------- SOZLAMALAR ---------- */
-        function openSettings() {
+        function openSettings(){
             const c = window.config;
             document.getElementById('set-user').value = c.user;
             document.getElementById('set-pass').value = c.pass;
+            document.getElementById('set-org').value = c.orgName || '';
             document.getElementById('set-phone').value = c.phone || '';
             document.getElementById('set-price').value = c.defaultPrice || '';
             document.getElementById('set-tg-token').value = c.tgToken || '';
             document.getElementById('set-chat-id').value = c.chatId || '';
             document.getElementById('modal-settings').style.display = 'flex';
         }
-        function closeSettings() { document.getElementById('modal-settings').style.display = 'none'; }
-        function saveSettings() {
+        function closeModal(id){ document.getElementById(id).style.display='none'; }
+        function saveSettings(){
             window.config = {
                 user: document.getElementById('set-user').value.trim() || 'admin',
                 pass: document.getElementById('set-pass').value || '123',
+                orgName: document.getElementById('set-org').value.trim() || 'Maktab',
                 phone: document.getElementById('set-phone').value.trim(),
                 defaultPrice: parseFloat(document.getElementById('set-price').value) || 0,
                 tgToken: document.getElementById('set-tg-token').value.trim(),
                 chatId: document.getElementById('set-chat-id').value.trim()
             };
-            window.saveConfigToCloud(); toast("Saqlandi ✅"); closeSettings();
+            window.saveConfigToCloud(); toast("Saqlandi ✅"); closeModal('modal-settings');
         }
 
-        /* ---------- TUN / YORUG'LIK ---------- */
-        function toggleDark() {
+        /* ---------- TUN REJIMI / EKSPORT / ZAXIRA / TELEGRAM ---------- */
+        function toggleDark(){
             document.body.classList.toggle('dark-mode');
-            localStorage.setItem('dark', document.body.classList.contains('dark-mode') ? '1' : '0');
-            document.getElementById('dark-toggle').innerText =
-                document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
-            renderTable();
+            localStorage.setItem('dark', document.body.classList.contains('dark-mode')?'1':'0');
+            document.getElementById('dark-toggle').innerText = document.body.classList.contains('dark-mode')?'☀️':'🌙';
+            renderCurrentTab();
         }
-
-        /* ---------- EKSPORT ---------- */
-        function exportExcel() {
+        function exportExcel(){
             const m = document.getElementById('month-select').value;
-            const data = (window.archiveData[m] || []).map((s, i) => ({
-                'No': i + 1, 'Ism Sharif': s.name, 'Narx': +s.price, 'Ovqat': +s.food,
-                'Sof': (+s.price||0) - (+s.food||0), 'Holat': getStatusLabel(s.st),
-                'Davomat': s.att ? 'Keldi' : 'Kelmadi'
-            }));
+            const data = monthData(m).map((s,i)=>({
+                'No':i+1, 'Ism Sharif':s.name, 'Sinf':(baseFind(s.name)||{}).cls||'',
+                'Narx':+s.price||0, 'Ovqat':+s.food||0, 'Sof':(+s.price||0)-(+s.food||0),
+                'Holat':getStatusLabel(s.st), 'Davomat':s.att?'Keldi':'Kelmadi' }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, m);
-            XLSX.writeFile(wb, `Hisobot_${m}.xlsx`);
-            toast("Excel yuklab olindi 📊");
+            XLSX.writeFile(wb, `Hisobot_${m}.xlsx`); toast("Excel yuklandi 📊");
         }
-
-        function exportPDF() {
+        function exportPDF(){
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             const m = document.getElementById('month-select').value;
-            const data = window.archiveData[m] || [];
-            let tP = 0, tF = 0;
-            data.forEach(s => { tP += +s.price || 0; tF += +s.food || 0; });
-
-            doc.setFontSize(16);
-            doc.text("Maktab Buxgalteriya — " + m + " oyi", 14, 15);
+            const data = monthData(m);
+            let tP=0, tF=0; data.forEach(s=>{ tP+=+s.price||0; tF+=+s.food||0; });
+            doc.setFontSize(16); doc.text((window.config.orgName||'Maktab')+" — "+m+" oyi", 14, 15);
             doc.setFontSize(10);
-            doc.text("Tushum: " + tP.toLocaleString() + " | Chiqim: " + tF.toLocaleString() +
-                     " | Foyda: " + (tP - tF).toLocaleString(), 14, 22);
-
-            doc.autoTable({
-                startY: 28,
-                head: [['No', 'Ism Sharif', 'Narx', 'Ovqat', 'Sof', 'Holat', 'Davomat']],
-                body: data.map((s, i) => [i + 1, s.name, (+s.price||0).toLocaleString(),
-                    (+s.food||0).toLocaleString(), ((+s.price||0)-(+s.food||0)).toLocaleString(),
-                    getStatusLabel(s.st), s.att ? 'Keldi' : 'Kelmadi']),
-                foot: [['', 'JAMI', tP.toLocaleString(), tF.toLocaleString(),
-                        (tP - tF).toLocaleString(), '', '']],
-                styles: { fontSize: 9 },
-                headStyles: { fillColor: [99, 102, 241] }
-            });
-            doc.save(`Hisobot_${m}.pdf`);
-            toast("PDF yuklab olindi 📄");
+            doc.text("Tushum: "+fmt(tP)+" | Chiqim: "+fmt(tF)+" | Foyda: "+fmt(tP-tF), 14, 22);
+            doc.autoTable({ startY:28,
+                head:[['No','Ism','Sinf','Narx','Ovqat','Sof','Holat','Davomat']],
+                body:data.map((s,i)=>[i+1, s.name, (baseFind(s.name)||{}).cls||'', fmt(s.price), fmt(s.food),
+                    fmt((+s.price||0)-(+s.food||0)), getStatusLabel(s.st), s.att?'Keldi':'Kelmadi']),
+                foot:[['','JAMI','',fmt(tP),fmt(tF),fmt(tP-tF),'','']],
+                styles:{fontSize:9}, headStyles:{fillColor:[99,102,241]} });
+            doc.save(`Hisobot_${m}.pdf`); toast("PDF yuklandi 📄");
         }
-
-        /* ---------- ZAXIRA ---------- */
-        function backupJSON() {
-            const blob = new Blob([JSON.stringify(window.archiveData, null, 2)], { type:'application/json' });
+        function backupJSON(){
+            const all = { data:window.archiveData, students:window.students, attendance:window.attendance,
+                          payments:window.payments, expenses:window.expenses };
+            const blob = new Blob([JSON.stringify(all,null,2)], {type:'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'zaxira_' + new Date().toISOString().slice(0, 10) + '.json';
-            a.click();
-            toast("Zaxira fayli yuklandi 💾");
+            a.download = 'zaxira_'+todayStr()+'.json'; a.click(); toast("Zaxira yuklandi 💾");
         }
-
-        function restoreJSON(input) {
-            const file = input.files[0];
-            if (!file) return;
+        function restoreJSON(input){
+            const file = input.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = e => {
                 try {
-                    if (!confirm("Zaxira hozirgi ma'lumotlarni almashtiradi. Davom etilsinmi?")) return;
-                    window.archiveData = JSON.parse(e.target.result);
-                    window.saveToCloud(); renderTable();
-                    toast("Zaxira tiklandi ✅");
-                } catch { toast("Fayl noto'g'ri formatda!", 'err'); }
+                    if (!confirm("Zaxira hozirgi ma'lumotlarni almashtiradi. Davom etamizmi?")) return;
+                    const d = JSON.parse(e.target.result);
+                    window.archiveData = d.data || {};
+                    window.students = d.students || [];
+                    window.attendance = d.attendance || {};
+                    window.payments = d.payments || [];
+                    window.expenses = d.expenses || [];
+                    window.saveToCloud(); window.saveStudents(); window.saveAttendance();
+                    window.savePayments(); window.saveExpenses();
+                    renderCurrentTab(); toast("Zaxira tiklandi ✅");
+                } catch { toast("Fayl noto'g'ri formatda!",'err'); }
             };
-            reader.readAsText(file);
-            input.value = '';
+            reader.readAsText(file); input.value='';
         }
-
-        /* ---------- TELEGRAM ---------- */
-        function sendTelegram() {
+        function sendTelegram(){
             const c = window.config;
-            if (!c.tgToken || !c.chatId) return toast("Sozlamalarda Bot Token va Chat ID kiriting!", 'err');
+            if (!c.tgToken || !c.chatId) return toast("Sozlamalarda Bot Token va Chat ID kiriting!",'err');
             const m = document.getElementById('month-select').value;
-            const data = window.archiveData[m] || [];
-            if (!data.length) return toast("Ma'lumot yo'q!", 'err');
-
-            let tP = 0;
-            let text = `📊 <b>${m} oyi hisoboti</b>\n\n`;
-            data.forEach((s, i) => {
-                tP += +s.price || 0;
-                const st = s.st === 'st-paid' ? '✅' : s.st === 'st-partial' ? '🟡' : '🔴';
-                text += `${i + 1}. <b>${esc(s.name)}</b> — ${(+s.price||0).toLocaleString()} so'm ${st}\n`;
+            const data = monthData(m);
+            if (!data.length) return toast("Ma'lumot yo'q!",'err');
+            let tP=0, text = `📊 <b>${m} oyi hisoboti</b>\n\n`;
+            data.forEach((s,i)=>{
+                tP += +s.price||0;
+                const st = s.st==='st-paid'?'✅':s.st==='st-partial'?'🟡':'🔴';
+                text += `${i+1}. <b>${esc(s.name)}</b> — ${fmt(s.price)} so'm ${st}\n`;
             });
-            text += `\n💰 Jami tushum: <b>${tP.toLocaleString()} so'm</b>`;
-            text += `\n📅 Sana: ${new Date().toLocaleDateString('uz-UZ')}`;
-
+            text += `\n💰 Jami tushum: <b>${fmt(tP)} so'm</b>\n📅 ${new Date().toLocaleDateString('uz-UZ')}`;
             fetch(`https://api.telegram.org/bot${c.tgToken}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: c.chatId, text: text, parse_mode: 'HTML' })
-            })
-            .then(r => r.json())
-            .then(res => res.ok ? toast("Telegramga yuborildi! 🤖")
-                                : toast("Xatolik: " + (res.description || ''), 'err'))
-            .catch(() => toast("Internet xatosi!", 'err'));
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ chat_id:c.chatId, text, parse_mode:'HTML' })
+            }).then(r=>r.json()).then(res=>res.ok?toast("Telegramga yuborildi! 🤖"):toast("Xatolik: "+(res.description||''),'err'))
+              .catch(()=>toast("Internet xatosi!",'err'));
         }
 
-        /* ---------- BOSHLANG'ICH SOZLASH ---------- */
-        if (localStorage.getItem('dark') === '1') {
+        /* ---------- BOSHLANG'ICH ---------- */
+        if (localStorage.getItem('dark')==='1'){
             document.body.classList.add('dark-mode');
-            document.getElementById('dark-toggle').innerText = '☀️';
+            document.getElementById('dark-toggle').innerText='☀️';
         }
         document.getElementById('month-select').value = MONTHS[new Date().getMonth()];
-        ['username', 'password'].forEach(id =>
-            document.getElementById(id).addEventListener('keydown', e => {
-                if (e.key === 'Enter') handleLogin();
-            }));
-        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
-        setInterval(updateSyncIndicator, 2000);
+        document.getElementById('att-date').value = todayStr();
+        ['username','password'].forEach(id =>
+            document.getElementById(id).addEventListener('keydown', e=>{ if (e.key==='Enter') handleLogin(); }));
+        document.addEventListener('keydown', e=>{
+            if (e.key==='Escape') { closeModal('modal-settings'); closeModal('modal-card'); }
+        });
+        if (sessionStorage.getItem('isAuth')==='true') showMain();
     </script>
 </body>
 </html>
