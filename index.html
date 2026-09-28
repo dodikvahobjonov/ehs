@@ -6,8 +6,9 @@
     <title>Maktab Buxgalteriya Cloud PRO</title>
 
     <meta property="og:title" content="Maktab Buxgalteriya Cloud PRO">
-    <meta property="og:description" content="Sinflar bo'yicha hisob-kitob va davomat tizimi">
+    <meta property="og:description" content="Talabalar hisob-kitobi va davomatini boshqarish tizimi">
     <meta property="og:image" content="https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=1000">
+    <meta property="og:url" content="https://maktab-hisob.vercel.app">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2653/2653500.png" type="image/x-icon">
 
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -42,50 +43,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Yangi versiya sinflar bilan alohida yo'lda saqlanadi
-        // (eski Python/HTML versiya ishlashini buzmaslik uchun)
-        const DB_DATA = 'accounting/dataV2';
-        const DB_OLD  = 'accounting/data';
-
-        const MONTH_NAMES = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust',
-                             'Sentabr','Oktabr','Noyabr','Dekabr'];
-
-        function migrateData(raw) {
-            // Eski format (oylar tepada) kelsa — "Umumiy" sinfga o'raymiz
-            if (!raw || typeof raw !== 'object') return {};
-            const keys = Object.keys(raw);
-            if (!keys.length) return {};
-            if (keys.every(k => MONTH_NAMES.includes(k))) return { 'Umumiy': raw };
-            return raw;
-        }
-
-        let oldDataCache = null;
-
-        function maybeMigrate() {
-            if (window._migrated) return;
-            if (window.archiveData && Object.keys(window.archiveData).length) return;
-            if (!oldDataCache || !Object.keys(oldDataCache).length) return;
-            window._migrated = true;
-            window.archiveData = { 'Umumiy': oldDataCache };
-            set(ref(db, DB_DATA), window.archiveData).then(() => {
-                if (typeof toast === 'function') toast("Eski ma'lumotlar 'Umumiy' sinfga ko'chirildi ✅");
-                if (sessionStorage.getItem('isAuth') === 'true') renderTable();
-            });
-        }
-
-        onValue(ref(db, DB_DATA), (snapshot) => {
-            window.archiveData = migrateData(snapshot.val());
+        onValue(ref(db, 'accounting/data'), (snapshot) => {
+            window.archiveData = snapshot.val() || {};
             window.cloudStatus = 'ulandi';
-            maybeMigrate();
             if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
             if (sessionStorage.getItem('isAuth') === 'true') renderTable();
         });
 
-        onValue(ref(db, DB_OLD), (snapshot) => {
-            oldDataCache = snapshot.val();
-            maybeMigrate();
-        });
-
+        // Bulutdagi config faqat to'liq bo'lsa o'zgartiriladi (bo'sh bo'lsa standart qoladi)
         onValue(ref(db, 'accounting/config'), (snapshot) => {
             const v = snapshot.val();
             if (v && v.user && v.pass) window.config = v;
@@ -94,7 +59,7 @@
         window.saveToCloud = () => {
             window.cloudStatus = 'saqlanmoqda';
             if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
-            set(ref(db, DB_DATA), window.archiveData)
+            set(ref(db, 'accounting/data'), window.archiveData)
                 .then(() => { window.cloudStatus = 'saqlandi'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); })
                 .catch(() => { window.cloudStatus = 'xato'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); });
         };
@@ -172,9 +137,6 @@
         .toast.ok { background:var(--success); }
         .toast.err { background:var(--danger); }
         @keyframes pop { from { transform:translateY(20px); opacity:0; } }
-
-        .sinf-row { display:flex; justify-content:space-between; align-items:center;
-               border:1px solid var(--border); border-radius:14px; padding:10px 14px; margin-bottom:8px; }
     </style>
 </head>
 <body>
@@ -226,10 +188,7 @@
         </div>
 
         <div class="toolbar">
-            <select id="sinf-select" onchange="changeSinf(this.value)" style="width:140px; margin:0;">
-                <option>— Sinf —</option>
-            </select>
-            <select id="month-select" onchange="renderTable()" style="width:140px; margin:0;">
+            <select id="month-select" onchange="renderTable()" style="width:150px; margin:0;">
                 <option>Yanvar</option><option>Fevral</option><option>Mart</option><option>Aprel</option>
                 <option>May</option><option>Iyun</option><option>Iyul</option><option>Avgust</option>
                 <option>Sentabr</option><option>Oktabr</option><option>Noyabr</option><option>Dekabr</option>
@@ -237,7 +196,6 @@
             <input type="text" id="search-input" placeholder="🔍 Qidirish..." oninput="renderTable()"
                    style="flex:1; margin:0;">
             <button class="btn btn-outline" onclick="markAll(true)">✅ Hammasi keldi</button>
-            <button class="btn btn-outline" onclick="openSinflar()">🏫 Sinflar</button>
             <button class="btn btn-danger" onclick="clearMonth()">🗑 Oyni tozalash</button>
         </div>
 
@@ -276,22 +234,6 @@
         </div>
     </div>
 
-    <!-- ========== SINFLAR OYNASI ========== -->
-    <div id="modal-sinflar" class="modal-overlay">
-        <div class="card" style="max-width:580px;">
-            <h3 style="margin-top:0;">🏫 Sinflar boshqaruvi</h3>
-            <div style="display:flex; gap:8px;">
-                <input id="new-sinf" placeholder="Sinf nomi (masalan: 5-A)" style="margin:0; flex:1;">
-                <button class="btn btn-primary" onclick="addClass()">+ Qo'shish</button>
-            </div>
-            <div id="sinf-list" style="margin-top:15px; max-height:300px; overflow-y:auto;"></div>
-            <div style="display:flex; gap:10px; margin-top:15px; flex-wrap:wrap;">
-                <button class="btn btn-outline" onclick="exportAllExcel()">📊 Barcha sinflar Excel</button>
-                <button class="btn btn-outline" onclick="closeSinflar()">Yopish</button>
-            </div>
-        </div>
-    </div>
-
     <!-- ========== SOZLAMALAR ========== -->
     <div id="modal-settings" class="modal-overlay">
         <div class="card">
@@ -312,32 +254,9 @@
     <script>
         let myChart, donutChart;
         let sortKey = null, sortDir = 1;
-        let curSinf = localStorage.getItem('curSinf') || null;
         const MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust',
                         'Sentabr','Oktabr','Noyabr','Dekabr'];
         const esc = s => String(s ?? '').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-
-        /* ---------- SINFLAR YORDAMCHILARI ---------- */
-        function allSinflar() {
-            const coll = new Intl.Collator('uz', { numeric:true });
-            return Object.keys(window.archiveData || {}).sort((a,b) => coll.compare(a,b));
-        }
-        function sinfData(sinf, oy) {
-            return ((window.archiveData || {})[sinf] || {})[oy] || [];
-        }
-        function renderSinfSelect() {
-            const sel = document.getElementById('sinf-select');
-            const list = allSinflar();
-            if (!list.includes(curSinf)) curSinf = list[0] || null;
-            sel.innerHTML = list.length
-                ? list.map(s => `<option value="${esc(s)}" ${s===curSinf?'selected':''}>🏫 ${esc(s)}</option>`).join('')
-                : '<option value="">— Sinf yo\'q —</option>';
-        }
-        function changeSinf(v) {
-            curSinf = v || null;
-            localStorage.setItem('curSinf', curSinf || '');
-            renderTable();
-        }
 
         /* ---------- BILDIRISHNOMALAR ---------- */
         function toast(msg, type='ok') {
@@ -356,7 +275,7 @@
             el.innerText = map[window.cloudStatus] || '';
         }
 
-        /* ---------- KIRISH ---------- */
+        /* ---------- KIRISH (TUZATILGAN — Firebase ishlamasa ham ishlaydi) ---------- */
         function handleLogin() {
             try {
                 const cfg = window.config || { user: 'admin', pass: '123' };
@@ -366,7 +285,6 @@
                     sessionStorage.setItem('isAuth', 'true');
                     document.getElementById('login-overlay').style.display = 'none';
                     document.getElementById('main-content').style.display = 'block';
-                    renderSinfSelect();
                     updateSyncIndicator();
                     renderTable();
                     toast("Xush kelibsiz! 👋");
@@ -395,11 +313,10 @@
 
         /* ---------- JADVAL ---------- */
         function renderTable() {
-            renderSinfSelect();
             const m = document.getElementById('month-select').value;
             const search = document.getElementById('search-input').value.toLowerCase();
             const tbody = document.getElementById('table-body');
-            const data = sinfData(curSinf, m);
+            const data = window.archiveData[m] || [];
             let tP = 0, tF = 0, tDebt = 0, attCount = 0;
             const counts = { paid:0, partial:0, debt:0 };
 
@@ -443,8 +360,7 @@
                     </td>
                 </tr>`;
             }).join('') || `<tr><td colspan="8" style="text-align:center; color:var(--sub); padding:30px;">
-                ${curSinf ? "Ma'lumot yo'q — \"+ Talaba\" tugmasini bosing" :
-                  "Hali sinf qo'shilmagan — 🔫 Sinflar tugmasini bosing va sinf qo'shing"}</td></tr>`;
+                Ma'lumot yo'q — "+ Talaba" tugmasini bosing</td></tr>`;
 
             document.getElementById('s-total').innerText = tP.toLocaleString();
             document.getElementById('s-food').innerText = tF.toLocaleString();
@@ -503,55 +419,48 @@
 
         /* ---------- AMALLAR ---------- */
         function toggleAtt(i) {
-            if (!curSinf) return;
             const m = document.getElementById('month-select').value;
-            const s = window.archiveData[curSinf][m][i];
+            const s = window.archiveData[m][i];
             s.att = !s.att;
             if (!s.att) s.food = 0;
             window.saveToCloud(); renderTable();
         }
 
         function nextStatus(i) {
-            if (!curSinf) return;
             const m = document.getElementById('month-select').value;
             const modes = ['st-debt', 'st-partial', 'st-paid'];
-            const s = window.archiveData[curSinf][m][i];
+            const s = window.archiveData[m][i];
             s.st = modes[(modes.indexOf(s.st) + 1) % 3];
             window.saveToCloud(); renderTable();
         }
 
         function addStudent() {
-            if (!curSinf) return toast("Avval 🏫 Sinflar orqali sinf qo'shing!", 'err');
             const m = document.getElementById('month-select').value;
-            if (!window.archiveData[curSinf]) window.archiveData[curSinf] = {};
-            if (!window.archiveData[curSinf][m]) window.archiveData[curSinf][m] = [];
+            if (!window.archiveData[m]) window.archiveData[m] = [];
             const dp = parseFloat(window.config.defaultPrice) || 0;
-            window.archiveData[curSinf][m].push({ name:'', price:dp, food:0, st:'st-debt', att:true });
+            window.archiveData[m].push({ name:'', price:dp, food:0, st:'st-debt', att:true });
             window.saveToCloud(); renderTable();
             const names = document.querySelectorAll('.name-input');
             if (names.length) names[names.length - 1].focus();
         }
 
         function duplicate(i) {
-            if (!curSinf) return;
             const m = document.getElementById('month-select').value;
-            const src = window.archiveData[curSinf][m][i];
-            const copy = { ...src, name: src.name + ' (nusxa)' };
-            window.archiveData[curSinf][m].splice(i + 1, 0, copy);
+            const copy = { ...window.archiveData[m][i], name: window.archiveData[m][i].name + ' (nusxa)' };
+            window.archiveData[m].splice(i + 1, 0, copy);
             window.saveToCloud(); renderTable(); toast("Nusxa yaratildi 📋");
         }
 
         function delStudent(i) {
-            if (!curSinf || !confirm("O'chirilsinmi?")) return;
+            if (!confirm("O'chirilsinmi?")) return;
             const m = document.getElementById('month-select').value;
-            window.archiveData[curSinf][m].splice(i, 1);
+            window.archiveData[m].splice(i, 1);
             window.saveToCloud(); renderTable();
         }
 
         function update(i, f, v) {
-            if (!curSinf) return;
             const m = document.getElementById('month-select').value;
-            window.archiveData[curSinf][m][i][f] = (f === 'name') ? v : parseFloat(v) || 0;
+            window.archiveData[m][i][f] = (f === 'name') ? v : parseFloat(v) || 0;
             window.saveToCloud(); renderTable();
         }
 
@@ -560,111 +469,27 @@
         }
 
         function markAll(att) {
-            if (!curSinf) return;
             const m = document.getElementById('month-select').value;
-            (sinfData(curSinf, m)).forEach(s => { s.att = att; if (!att) s.food = 0; });
+            (window.archiveData[m] || []).forEach(s => { s.att = att; if (!att) s.food = 0; });
             window.saveToCloud(); renderTable(); toast("Davomat belgilandi ✅");
         }
 
         function clearMonth() {
-            if (!curSinf) return;
             const m = document.getElementById('month-select').value;
-            if (!confirm(curSinf + " sinfining " + m + " oyi BARCHA ma'lumotlari o'chirilsinmi?! Qaytarib bo'lmaydi!")) return;
-            window.archiveData[curSinf][m] = [];
+            if (!confirm(m + " oyidagi BARCHA ma'lumotlar o'chirilsinmi?! Buni qaytarib bo'lmaydi!")) return;
+            window.archiveData[m] = [];
             window.saveToCloud(); renderTable();
         }
 
         function copyPrevMonth() {
-            if (!curSinf) return toast("Avval sinf tanlang!", 'err');
             const m = document.getElementById('month-select').value;
             const idx = MONTHS.indexOf(m);
             if (idx <= 0) return toast("Yanvardan oldingi oy yo'q!", 'err');
-            const prev = sinfData(curSinf, MONTHS[idx - 1]);
+            const prev = window.archiveData[MONTHS[idx - 1]] || [];
             if (!prev.length) return toast("O'tgan oyda ma'lumot yo'q!", 'err');
             if (!confirm(MONTHS[idx-1] + " dagi " + prev.length + " ta o'quvchi " + m + " ga ko'chirilsinmi?")) return;
-            window.archiveData[curSinf][m] = prev.map(s => ({ ...s, st:'st-debt', att:true }));
+            window.archiveData[m] = prev.map(s => ({ ...s, st:'st-debt', att:true }));
             window.saveToCloud(); renderTable(); toast("O'quvchilar ko'chirildi ✅");
-        }
-
-        /* ---------- SINFLAR BOSHQARUVI ---------- */
-        function openSinflar() { renderSinflar(); document.getElementById('modal-sinflar').style.display = 'flex'; }
-        function closeSinflar() { document.getElementById('modal-sinflar').style.display = 'none'; }
-
-        function renderSinflar() {
-            const m = document.getElementById('month-select').value;
-            const box = document.getElementById('sinf-list');
-            const list = allSinflar();
-            if (!list.length) {
-                box.innerHTML = '<p style="color:var(--sub); text-align:center;">Hali sinf qo\'shilmagan. Yuqoridan nom yozib "+ Qo\'shish" bosing.</p>';
-                return;
-            }
-            let gT = 0, gQ = 0, gN = 0;
-            box.innerHTML = list.map((s, idx) => {
-                const data = sinfData(s, m);
-                let tP = 0, debt = 0;
-                data.forEach(st => {
-                    tP += +st.price || 0;
-                    if (st.st !== 'st-paid' && st.st !== 'st-partial')
-                        debt += (+st.price||0) - (+st.food||0);
-                });
-                gT += tP; gQ += debt; gN += data.length;
-                return `<div class="sinf-row">
-                    <div><b>🏫 ${esc(s)}</b><br>
-                        <small style="color:var(--sub)">${data.length} o'quvchi | Tushum: ${tP.toLocaleString()} so'm | Qarz: ${debt.toLocaleString()} so'm</small></div>
-                    <div style="white-space:nowrap;">
-                        <button class="icon-btn" title="Nomini o'zgartirish" onclick="renameSinf(${idx})">✏️</button>
-                        <button class="icon-btn" title="O'chirish" onclick="delSinf(${idx})">🗑</button>
-                    </div>
-                </div>`;
-            }).join('') + `<div class="sinf-row" style="border-top:2px solid var(--primary);">
-                <div><b>JAMI (${list.length} sinf)</b><br>
-                    <small style="color:var(--sub)">${gN} o'quvchi | Tushum: ${gT.toLocaleString()} so'm | Qarz: ${gQ.toLocaleString()} so'm</small></div>
-                <div></div>
-            </div>`;
-        }
-
-        function addClass() {
-            const inp = document.getElementById('new-sinf');
-            const name = inp.value.trim();
-            if (!name) return toast("Sinf nomini yozing!", 'err');
-            if (MONTHS.includes(name)) return toast("Sinf nomi oy nomi bo'lishi mumkin emas!", 'err');
-            if (window.archiveData[name]) return toast("Bunday sinf allaqachon bor!", 'err');
-            window.archiveData[name] = window.archiveData[name] || {};
-            if (!curSinf) { curSinf = name; localStorage.setItem('curSinf', name); }
-            inp.value = '';
-            window.saveToCloud(); renderSinflar(); renderSinfSelect(); renderTable();
-            toast(`"${name}" sinfi qo'shildi 🏫`);
-        }
-
-        function renameSinf(idx) {
-            const list = allSinflar();
-            const old = list[idx];
-            const nn = prompt("Yangi nom:", old);
-            if (nn === null) return;
-            const name = nn.trim();
-            if (!name || name === old) return;
-            if (MONTHS.includes(name)) return toast("Sinf nomi oy nomi bo'lishi mumkin emas!", 'err');
-            if (window.archiveData[name]) return toast("Bunday sinf mavjud!", 'err');
-            window.archiveData[name] = window.archiveData[old];
-            delete window.archiveData[old];
-            if (curSinf === old) { curSinf = name; localStorage.setItem('curSinf', name); }
-            window.saveToCloud(); renderSinflar(); renderSinfSelect(); renderTable();
-            toast("Sinf nomi o'zgartirildi ✏️");
-        }
-
-        function delSinf(idx) {
-            const list = allSinflar();
-            const name = list[idx];
-            const cnt = Object.values(window.archiveData[name] || {}).reduce((a, b) => a + (b?.length || 0), 0);
-            if (!confirm(`"${name}" sinfi o'chirilsinmi? Unda ${cnt} ta yozuv bor!`)) return;
-            if (!confirm("Aniq o'chirilsinmi? Bu amalni QAYTARIB BO'LMAYDI!")) return;
-            delete window.archiveData[name];
-            if (curSinf === name) {
-                curSinf = allSinflar()[0] || null;
-                localStorage.setItem('curSinf', curSinf || '');
-            }
-            window.saveToCloud(); renderSinflar(); renderSinfSelect(); renderTable();
-            toast("Sinf o'chirildi 🗑");
         }
 
         /* ---------- SOZLAMALAR ---------- */
@@ -702,48 +527,29 @@
 
         /* ---------- EKSPORT ---------- */
         function exportExcel() {
-            if (!curSinf) return toast("Avval sinf tanlang!", 'err');
             const m = document.getElementById('month-select').value;
-            const data = sinfData(curSinf, m).map((s, i) => ({
+            const data = (window.archiveData[m] || []).map((s, i) => ({
                 'No': i + 1, 'Ism Sharif': s.name, 'Narx': +s.price, 'Ovqat': +s.food,
                 'Sof': (+s.price||0) - (+s.food||0), 'Holat': getStatusLabel(s.st),
                 'Davomat': s.att ? 'Keldi' : 'Kelmadi'
             }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, curSinf.replace(/[\\\/\*\?\[\]\:]/g, '-').slice(0, 31));
-            XLSX.writeFile(wb, `Hisobot_${curSinf}_${m}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, m);
+            XLSX.writeFile(wb, `Hisobot_${m}.xlsx`);
             toast("Excel yuklab olindi 📊");
-        }
-
-        function exportAllExcel() {
-            const m = document.getElementById('month-select').value;
-            const list = allSinflar();
-            if (!list.length) return toast("Sinf yo'q!", 'err');
-            const wb = XLSX.utils.book_new();
-            list.forEach(s => {
-                const data = sinfData(s, m).map((st, i) => ({
-                    'No': i + 1, 'Ism Sharif': st.name, 'Narx': +st.price, 'Ovqat': +st.food,
-                    'Sof': (+st.price||0) - (+st.food||0), 'Holat': getStatusLabel(st.st),
-                    'Davomat': st.att ? 'Keldi' : 'Kelmadi'
-                }));
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data),
-                    s.replace(/[\\\/\*\?\[\]\:]/g, '-').slice(0, 31));
-            });
-            XLSX.writeFile(wb, `Barcha_sinflar_${m}.xlsx`);
-            toast("Barcha sinflar Excel yuklandi 📊");
         }
 
         function exportPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             const m = document.getElementById('month-select').value;
-            const data = sinfData(curSinf, m);
+            const data = window.archiveData[m] || [];
             let tP = 0, tF = 0;
             data.forEach(s => { tP += +s.price || 0; tF += +s.food || 0; });
 
             doc.setFontSize(16);
-            doc.text(`Maktab Buxgalteriya — ${curSinf || ''} — ${m} oyi`, 14, 15);
+            doc.text("Maktab Buxgalteriya — " + m + " oyi", 14, 15);
             doc.setFontSize(10);
             doc.text("Tushum: " + tP.toLocaleString() + " | Chiqim: " + tF.toLocaleString() +
                      " | Foyda: " + (tP - tF).toLocaleString(), 14, 22);
@@ -759,7 +565,7 @@
                 styles: { fontSize: 9 },
                 headStyles: { fillColor: [99, 102, 241] }
             });
-            doc.save(`Hisobot_${curSinf}_${m}.pdf`);
+            doc.save(`Hisobot_${m}.pdf`);
             toast("PDF yuklab olindi 📄");
         }
 
@@ -780,13 +586,7 @@
             reader.onload = e => {
                 try {
                     if (!confirm("Zaxira hozirgi ma'lumotlarni almashtiradi. Davom etilsinmi?")) return;
-                    let raw = JSON.parse(e.target.result);
-                    const keys = Object.keys(raw || {});
-                    // Eski format (oylar tepada) bo'lsa — "Umumiy" sinfga o'raymiz
-                    if (keys.length && keys.every(k => MONTHS.includes(k))) raw = { 'Umumiy': raw };
-                    window.archiveData = raw || {};
-                    curSinf = allSinflar()[0] || null;
-                    localStorage.setItem('curSinf', curSinf || '');
+                    window.archiveData = JSON.parse(e.target.result);
                     window.saveToCloud(); renderTable();
                     toast("Zaxira tiklandi ✅");
                 } catch { toast("Fayl noto'g'ri formatda!", 'err'); }
@@ -799,13 +599,12 @@
         function sendTelegram() {
             const c = window.config;
             if (!c.tgToken || !c.chatId) return toast("Sozlamalarda Bot Token va Chat ID kiriting!", 'err');
-            if (!curSinf) return toast("Avval sinf tanlang!", 'err');
             const m = document.getElementById('month-select').value;
-            const data = sinfData(curSinf, m);
+            const data = window.archiveData[m] || [];
             if (!data.length) return toast("Ma'lumot yo'q!", 'err');
 
             let tP = 0;
-            let text = `📊 <b>${curSinf} — ${m} oyi hisoboti</b>\n\n`;
+            let text = `📊 <b>${m} oyi hisoboti</b>\n\n`;
             data.forEach((s, i) => {
                 tP += +s.price || 0;
                 const st = s.st === 'st-paid' ? '✅' : s.st === 'st-partial' ? '🟡' : '🔴';
@@ -835,12 +634,7 @@
             document.getElementById(id).addEventListener('keydown', e => {
                 if (e.key === 'Enter') handleLogin();
             }));
-        document.getElementById('new-sinf').addEventListener('keydown', e => {
-            if (e.key === 'Enter') addClass();
-        });
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { closeSettings(); closeSinflar(); }
-        });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
         setInterval(updateSyncIndicator, 2000);
     </script>
 </body>
