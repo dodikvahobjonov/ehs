@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maktab Buxgalteriya PRO MAX</title>
+    <title>Maktab Buxgalteriya</title>
     <meta property="og:title" content="Maktab Buxgalteriya PRO MAX">
     <meta property="og:description" content="To'liq maktab buxgalteriya tizimi">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2653/2653500.png" type="image/x-icon">
@@ -38,8 +38,7 @@
         };
         window.saveLocal();
 
-        // Agar Firebase yuklanmasa (masalan fayl to'g'ridan-to'g'ri ochilsa) —
-        // saqlash qurilma xotirasiga boradi, ma'lumot YO'QOLMAYDI
+        // Agar Firebase yuklanmasa — saqlash qurilma xotirasiga boradi
         window.saveToCloud       = window.saveToCloud       || function(){ window.saveLocal(); };
         window.saveStudents      = window.saveStudents      || function(){ window.saveLocal(); };
         window.saveAttendance    = window.saveAttendance    || function(){ window.saveLocal(); };
@@ -124,7 +123,7 @@
         });
 
         // ---- SAQLASH: qurilma + bulut (xato bo'lsa ekranda ko'rinadi) ----
-        function xatoToast(){ if (typeof toast === 'function') toast("⚠️ Bulutga yozilmadi! Ma'lumot qurilmada saqlandi.", 'err'); }
+        function xatoToast(){ if (typeof toast === 'function') toast("⚠️ Bulutga yozilmadi! Firebase Rules'da '.write': true qiling. Ma'lumot qurilmada saqlandi.", 'err'); }
 
         window.saveToCloud = () => {
             window.saveLocal();
@@ -460,7 +459,7 @@
 
         function toast(msg, type='ok') {
             const t = document.createElement('div'); t.className='toast '+type; t.innerText=msg;
-            document.body.appendChild(t); setTimeout(()=>t.remove(),3500);
+            document.body.appendChild(t); setTimeout(()=>t.remove(),4000);
         }
         function updateSyncIndicator() {
             const el = document.getElementById('sync-status'); if (!el) return;
@@ -528,7 +527,12 @@
 
             let rows = data.map((s,i)=>({ ...s, _i:i }));
             if (search) rows = rows.filter(s => String(s.name).toLowerCase().includes(search));
-            if (clsF) rows = rows.filter(s => { const b = baseFind(s.name); return b && String(b.cls||'') === clsF; });
+            // TUZATILGAN: sinf ham yozuvdan, ham bazadan tekshiriladi
+            if (clsF) rows = rows.filter(s => {
+                if (String(s.cls||'') === clsF) return true;
+                const b = baseFind(s.name);
+                return b && String(b.cls||'') === clsF;
+            });
             if (sortKey) rows.sort((a,b) => {
                 const x = sortKey==='net' ? (a.price-a.food) : a[sortKey];
                 const y = sortKey==='net' ? (b.price-b.food) : b[sortKey];
@@ -537,10 +541,12 @@
 
             document.getElementById('table-body').innerHTML = rows.map(s => {
                 const net = (+s.price||0)-(+s.food||0);
+                const clsB = baseFind(s.name);
+                const clsTxt = s.cls || (clsB ? clsB.cls : '');
                 return `<tr class="${s.st==='st-debt'?'row-debt':''}">
                     <td>${s._i+1}</td>
                     <td><button class="attendance-btn ${s.att?'present':'absent'}" onclick="toggleAtt(${s._i})">${s.att?'✅':'❌'}</button></td>
-                    <td><input class="name-input" value="${esc(s.name)}" onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:100%;"></td>
+                    <td><input class="name-input" value="${esc(s.name)}" onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:100%;">${clsTxt?`<span class="chip" style="font-size:10px; padding:2px 8px;">${esc(clsTxt)}</span>`:''}</td>
                     <td><input type="number" value="${s.price}" onchange="update(${s._i},'price',this.value)" style="border:none; width:100px; margin:0;"></td>
                     <td><input type="number" value="${s.food}" onchange="update(${s._i},'food',this.value)" style="border:none; width:100px; margin:0;"></td>
                     <td><b>${fmt(net)}</b></td>
@@ -578,7 +584,9 @@
                 type:'bar',
                 data:{ labels:['Tushum','Chiqim','Foyda'], datasets:[{ data:[tP,tF,tP-tF], backgroundColor:['#6366f1','#ef4444','#10b981'], borderRadius:10 }] },
                 options:{ maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+" so'm"}} },
-                    scales:{ y:{ ticks:{color:textC}, grid:{color:gridC} }, x:{ ticks:{color:textC}, grid:{display:false} } } }
+                    // TUZATILGAN: butun sonlar, g'alati kasr raqamlar yo'q
+                    scales:{ y:{ beginAtZero:true, suggestedMax:Math.max(10,tP,tF,tP-tF), ticks:{color:textC, precision:0}, grid:{color:gridC} },
+                             x:{ ticks:{color:textC}, grid:{display:false} } } }
             });
             if (donutChart) donutChart.destroy();
             donutChart = new Chart(document.getElementById('donutChart'), {
@@ -603,7 +611,7 @@
             const m = document.getElementById('month-select').value;
             if (!window.archiveData[m]) window.archiveData[m] = [];
             const dp = parseFloat(window.config.defaultPrice)||0;
-            window.archiveData[m].push({ name:'', price:dp, food:0, st:'st-debt', att:true });
+            window.archiveData[m].push({ name:'', cls:'', price:dp, food:0, st:'st-debt', att:true });
             window.saveToCloud(); renderTable();
             const names = document.querySelectorAll('.name-input');
             if (names.length) names[names.length-1].focus();
@@ -622,7 +630,7 @@
         }
         function update(i, f, v){
             const m = document.getElementById('month-select').value;
-            monthData(m)[i][f] = (f==='name') ? v : parseFloat(v)||0;
+            monthData(m)[i][f] = (f==='name'||f==='cls') ? v : parseFloat(v)||0;
             window.saveToCloud(); renderTable();
         }
         function getStatusLabel(st){ return st==='st-paid'?"TO'LANDI":st==='st-partial'?'QISMAN':'QARZ'; }
@@ -653,7 +661,8 @@
             let q = 0;
             base.forEach(b => {
                 const bor = monthData(m).some(s => String(s.name).trim().toLowerCase() === String(b.name).trim().toLowerCase());
-                if (!bor) { window.archiveData[m].push({ name:b.name, price:+b.price||0, food:0, st:'st-debt', att:true }); q++; }
+                // TUZATILGAN: sinf yozuvning o'ziga ham yoziladi — filtr to'g'ri ishlaydi
+                if (!bor) { window.archiveData[m].push({ name:b.name, cls:b.cls||'', price:+b.price||0, food:0, st:'st-debt', att:true }); q++; }
             });
             window.saveToCloud(); renderTable();
             toast(q ? q+" ta o'quvchi qo'shildi ✅" : "Barcha o'quvchilar allaqachon bor 😊");
@@ -777,7 +786,8 @@
                 options:{ maintainAspectRatio:false,
                     plugins:{ legend:{ labels:{ color:textC, usePointStyle:true } },
                         tooltip:{ callbacks:{ label:c=>c.dataset.label+": "+c.raw.toLocaleString()+" so'm" } } },
-                    scales:{ y:{ ticks:{ color:textC }, grid:{ color:gridC } }, x:{ ticks:{ color:textC }, grid:{ display:false } } } }
+                    scales:{ y:{ beginAtZero:true, ticks:{ color:textC, precision:0 }, grid:{ color:gridC } },
+                             x:{ ticks:{ color:textC }, grid:{ display:false } } } }
             });
             document.getElementById('y-p').innerText = fmt(sP);
             document.getElementById('y-f').innerText = fmt(sF);
@@ -990,10 +1000,13 @@
         }
         function exportExcel(){
             const m = document.getElementById('month-select').value;
-            const data = monthData(m).map((s,i)=>({
-                'No':i+1, 'Ism Sharif':s.name, 'Sinf':(baseFind(s.name)||{}).cls||'',
-                'Narx':+s.price||0, 'Ovqat':+s.food||0, 'Sof':(+s.price||0)-(+s.food||0),
-                'Holat':getStatusLabel(s.st), 'Davomat':s.att?'Keldi':'Kelmadi' }));
+            const data = monthData(m).map((s,i)=>{
+                const b = baseFind(s.name);
+                return {
+                    'No':i+1, 'Ism Sharif':s.name, 'Sinf':s.cls||b?.cls||'',
+                    'Narx':+s.price||0, 'Ovqat':+s.food||0, 'Sof':(+s.price||0)-(+s.food||0),
+                    'Holat':getStatusLabel(s.st), 'Davomat':s.att?'Keldi':'Kelmadi' };
+            });
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, m);
@@ -1010,8 +1023,9 @@
             doc.text("Tushum: "+fmt(tP)+" | Chiqim: "+fmt(tF)+" | Foyda: "+fmt(tP-tF), 14, 22);
             doc.autoTable({ startY:28,
                 head:[['No','Ism','Sinf','Narx','Ovqat','Sof','Holat','Davomat']],
-                body:data.map((s,i)=>[i+1, s.name, (baseFind(s.name)||{}).cls||'', fmt(s.price), fmt(s.food),
-                    fmt((+s.price||0)-(+s.food||0)), getStatusLabel(s.st), s.att?'Keldi':'Kelmadi']),
+                body:data.map((s,i)=>{ const b = baseFind(s.name);
+                    return [i+1, s.name, s.cls||b?.cls||'', fmt(s.price), fmt(s.food),
+                        fmt((+s.price||0)-(+s.food||0)), getStatusLabel(s.st), s.att?'Keldi':'Kelmadi']; }),
                 foot:[['','JAMI','',fmt(tP),fmt(tF),fmt(tP-tF),'','']],
                 styles:{fontSize:9}, headStyles:{fillColor:[99,102,241]} });
             doc.save(`Hisobot_${m}.pdf`); toast("PDF yuklandi 📄");
@@ -1084,7 +1098,7 @@
 
         // Fayl to'g'ridan-to'g'ri ochilgan bo'lsa — ogohlantirish
         if (location.protocol === 'file:') {
-            setTimeout(() => toast("⚠️ Fayl kompyuterdan ochilgan! Bulut faqat Vercel havolasi orqali ishlaydi. Hozir ma'lumot shu qurilmaga saqlanadi.", 'err'), 1200);
+            setTimeout(() => toast("⚠️ Fayl kompyuterdan ochilgan! Bulut faqat Vercel havolasi orqali ishlaydi.", 'err'), 1200);
         }
     </script>
 </body>
