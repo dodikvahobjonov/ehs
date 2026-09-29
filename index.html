@@ -7,6 +7,9 @@
     <meta property="og:title" content="Maktab Buxgalteriya PRO MAX">
     <meta property="og:description" content="To'liq maktab buxgalteriya tizimi">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2653/2653500.png" type="image/x-icon">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Maktab Pro">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
@@ -20,8 +23,10 @@
         window.attendance  = lsGet('attendance') || {};
         window.payments    = lsGet('payments') || [];
         window.expenses    = lsGet('expenses') || [];
-        window.config = Object.assign({ user:'admin', pass:'123', phone:'+998', orgName:'Maktab',
-                       tgToken:'', chatId:'', defaultPrice:0 }, lsGet('config') || {});
+        window.trash       = lsGet('trash') || [];
+        window.config = Object.assign({ user:'admin', pass:'123', user2:'', pass2:'', role2:'view',
+                       phone:'+998', orgName:'Maktab', tgToken:'', chatId:'', defaultPrice:0, monthlyPlan:0 },
+                       lsGet('config') || {});
         window.cloudStatus = 'yuklanmoqda';
 
         window.saveLocal = function(){
@@ -31,6 +36,7 @@
                 localStorage.setItem('mb_attendance', JSON.stringify(window.attendance||{}));
                 localStorage.setItem('mb_payments', JSON.stringify(window.payments||[]));
                 localStorage.setItem('mb_expenses', JSON.stringify(window.expenses||[]));
+                localStorage.setItem('mb_trash', JSON.stringify(window.trash||[]));
                 localStorage.setItem('mb_config', JSON.stringify(window.config||{}));
             } catch(e){}
         };
@@ -41,6 +47,7 @@
         window.saveAttendance    = window.saveAttendance    || function(){ window.saveLocal(); };
         window.savePayments      = window.savePayments      || function(){ window.saveLocal(); };
         window.saveExpenses      = window.saveExpenses      || function(){ window.saveLocal(); };
+        window.saveTrash         = window.saveTrash         || function(){ window.saveLocal(); };
         window.saveConfigToCloud = window.saveConfigToCloud || function(){ window.saveLocal(); };
     </script>
 
@@ -72,12 +79,10 @@
             window.cloudStatus = 'ulandi';
             if (typeof renderCurrentTab === 'function') renderCurrentTab();
         });
-
         onValue(ref(db, 'accounting/config'), (snapshot) => {
             const v = snapshot.val();
             if (v && v.user && v.pass) { window.config = v; window.saveLocal(); }
         });
-
         onValue(ref(db, 'accounting/students'), (snapshot) => {
             const cloud = snapshot.val();
             if (bor(cloud)) window.students = cloud;
@@ -87,7 +92,6 @@
             }
             if (typeof renderStudents === 'function') renderStudents();
         });
-
         onValue(ref(db, 'accounting/attendance'), (snapshot) => {
             const cloud = snapshot.val();
             if (bor(cloud)) window.attendance = cloud;
@@ -97,7 +101,6 @@
             }
             if (typeof renderAttendance === 'function') renderAttendance();
         });
-
         onValue(ref(db, 'accounting/payments'), (snapshot) => {
             const cloud = snapshot.val();
             if (bor(cloud)) window.payments = cloud;
@@ -107,7 +110,6 @@
             }
             if (typeof renderPayments === 'function') renderPayments();
         });
-
         onValue(ref(db, 'accounting/expenses'), (snapshot) => {
             const cloud = snapshot.val();
             if (bor(cloud)) window.expenses = cloud;
@@ -117,14 +119,21 @@
             }
             if (typeof renderExpenses === 'function') renderExpenses();
         });
+        onValue(ref(db, 'accounting/trash'), (snapshot) => {
+            const cloud = snapshot.val();
+            if (bor(cloud)) window.trash = cloud;
+            else {
+                const local = lsGet('trash');
+                if (local && local.length) { window.trash = local; set(ref(db,'accounting/trash'), local).catch(()=>{}); }
+            }
+        });
 
-        // XATO: sessiyada faqat 1 marta, sariq rangda — bezovta qilmaydi
         let xatoKorsatildi = false;
         function xatoToast(){
             if (xatoKorsatildi) return;
             xatoKorsatildi = true;
             if (typeof toast === 'function')
-                toast("ℹ️ Bulutga ulanmadi — ma'lumotlar shu qurilmada xavfsiz saqlanadi. Bulutni yoqish: Firebase → Realtime Database → Rules → '.read': true, '.write': true", 'warn');
+                toast("ℹ️ Bulutga ulanmadi — ma'lumotlar shu qurilmada xavfsiz saqlanadi. Yoqish uchun: Firebase → Realtime Database → Rules → '.read': true, '.write': true", 'warn');
         }
 
         window.saveToCloud = () => {
@@ -135,16 +144,12 @@
                 .then(() => { window.cloudStatus = 'saqlandi'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); })
                 .catch(() => { window.cloudStatus = 'xato'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); xatoToast(); });
         };
-        window.saveStudents = () => { window.saveLocal();
-            set(ref(db, 'accounting/students'), window.students).catch(xatoToast); };
-        window.saveAttendance = () => { window.saveLocal();
-            set(ref(db, 'accounting/attendance'), window.attendance).catch(xatoToast); };
-        window.savePayments = () => { window.saveLocal();
-            set(ref(db, 'accounting/payments'), window.payments).catch(xatoToast); };
-        window.saveExpenses = () => { window.saveLocal();
-            set(ref(db, 'accounting/expenses'), window.expenses).catch(xatoToast); };
-        window.saveConfigToCloud = () => { window.saveLocal();
-            set(ref(db, 'accounting/config'), window.config).catch(xatoToast); };
+        window.saveStudents = () => { window.saveLocal(); set(ref(db, 'accounting/students'), window.students).catch(xatoToast); };
+        window.saveAttendance = () => { window.saveLocal(); set(ref(db, 'accounting/attendance'), window.attendance).catch(xatoToast); };
+        window.savePayments = () => { window.saveLocal(); set(ref(db, 'accounting/payments'), window.payments).catch(xatoToast); };
+        window.saveExpenses = () => { window.saveLocal(); set(ref(db, 'accounting/expenses'), window.expenses).catch(xatoToast); };
+        window.saveTrash = () => { window.saveLocal(); set(ref(db, 'accounting/trash'), window.trash).catch(xatoToast); };
+        window.saveConfigToCloud = () => { window.saveLocal(); set(ref(db, 'accounting/config'), window.config).catch(xatoToast); };
     </script>
 
     <style>
@@ -153,6 +158,7 @@
         .dark-mode { --bg:#0f172a; --card:#1e293b; --text:#f1f5f9; --sub:#94a3b8; --border:#334155; }
         * { box-sizing:border-box; }
         body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:var(--text); margin:0; padding:20px; transition:.3s; }
+        .viewer .admin-only { display:none !important; }
         #login-overlay, .modal-overlay { position:fixed; inset:0; background:var(--bg); display:flex; justify-content:center; align-items:center; z-index:9999; }
         .modal-overlay { background:rgba(0,0,0,.55); display:none; }
         .card { background:var(--card); padding:30px; border-radius:24px; box-shadow:0 10px 25px rgba(0,0,0,.08); width:100%; max-width:400px; border:1px solid var(--border); }
@@ -167,7 +173,7 @@
         .tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
         .tab-btn { padding:11px 16px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); font-weight:700; cursor:pointer; font-family:inherit; font-size:13px; }
         .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
-        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:20px; }
+        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:14px; }
         .stat-card { background:var(--card); padding:16px 20px; border-radius:18px; border:1px solid var(--border); }
         .stat-card span { font-size:12px; color:var(--sub); font-weight:600; }
         .stat-card h2 { margin:6px 0 0; font-size:22px; }
@@ -203,6 +209,9 @@
         @keyframes pop { from { transform:translateY(20px); opacity:0; } }
         .form-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
         .form-row input, .form-row select { margin:0; }
+        #plan-wrap { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 18px; margin-bottom:20px; }
+        #plan-track { background:var(--bg); border-radius:10px; height:12px; margin-top:8px; overflow:hidden; }
+        #plan-fill { height:100%; background:var(--primary); width:0%; transition:.4s; border-radius:10px; }
     </style>
 </head>
 <body>
@@ -220,6 +229,7 @@
                 <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="handleRecover()">Parolni ko'rish</button>
                 <button class="btn" style="background:none; color:var(--sub); font-size:12px; margin-top:6px;" onclick="toggleRecover(false)">Bekor qilish</button>
             </div>
+            <div style="font-size:11px; color:var(--sub); margin-top:12px;">💡 Ikkinchi akkaunt (o'rinbosar uchun) ⚙️ Sozlamalarda qo'shiladi</div>
         </div>
     </div>
 
@@ -228,8 +238,10 @@
             <h1 style="margin:0;">Maktab Pro ☁️ <span style="font-size:13px; color:var(--primary);">PRO MAX</span></h1>
             <span id="sync-status">☁️ Ulanmoqda...</span>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-success" id="install-btn" style="display:none;" onclick="installPWA()">📱 O'rnatish</button>
+                <button class="btn btn-outline" onclick="openTrash()" title="Savat (o'chirilganlar)">🗑</button>
                 <button class="btn btn-outline" onclick="toggleDark()" id="dark-toggle">🌙</button>
-                <button class="btn btn-outline" onclick="openSettings()">⚙️</button>
+                <button class="btn btn-outline admin-only" onclick="openSettings()">⚙️</button>
                 <button class="btn btn-outline" onclick="logout()">Chiqish</button>
             </div>
         </div>
@@ -237,6 +249,7 @@
         <div class="tabs">
             <button class="tab-btn active" id="tb-hisob" onclick="switchTab('hisob')">💰 Hisob</button>
             <button class="tab-btn" id="tb-davomat" onclick="switchTab('davomat')">📅 Kunlik davomat</button>
+            <button class="tab-btn" id="tb-taqqos" onclick="switchTab('taqqos')">📊 Taqqoslash</button>
             <button class="tab-btn" id="tb-qarzdorlar" onclick="switchTab('qarzdorlar')">🔴 Qarzdorlar</button>
             <button class="tab-btn" id="tb-yillik" onclick="switchTab('yillik')">📈 Yillik</button>
             <button class="tab-btn" id="tb-tolovlar" onclick="switchTab('tolovlar')">🧾 To'lovlar</button>
@@ -247,14 +260,15 @@
         <!-- HISOB -->
         <div id="tab-hisob" class="tab-page">
             <div style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
-                <button class="btn btn-primary" onclick="addStudent()">+ Talaba</button>
-                <button class="btn btn-outline" onclick="quickFillFromBase()">👨‍🎓 Bazadan to'ldirish</button>
-                <button class="btn btn-outline" onclick="copyPrevMonth()">📋 O'tgan oydan</button>
+                <button class="btn btn-primary admin-only" onclick="addStudent()">+ Talaba</button>
+                <button class="btn btn-outline admin-only" onclick="quickFillFromBase()">👨‍🎓 Bazadan to'ldirish</button>
+                <button class="btn btn-outline admin-only" onclick="copyPrevMonth()">📋 O'tgan oydan</button>
+                <button class="btn btn-outline" onclick="printClassList()">🖨 Ro'yxat chop etish</button>
                 <button class="btn btn-outline" onclick="exportExcel()">📊 Excel</button>
                 <button class="btn btn-outline" onclick="exportPDF()">📄 PDF</button>
                 <button class="btn btn-outline" onclick="sendTelegram()">🤖 Telegram</button>
-                <button class="btn btn-outline" onclick="backupJSON()">💾 Zaxira</button>
-                <button class="btn btn-outline" onclick="document.getElementById('restore-file').click()">⬆️ Tiklash</button>
+                <button class="btn btn-outline admin-only" onclick="backupJSON()">💾 Zaxira</button>
+                <button class="btn btn-outline admin-only" onclick="document.getElementById('restore-file').click()">⬆️ Tiklash</button>
                 <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(this)">
             </div>
             <div class="charts-grid">
@@ -271,12 +285,17 @@
                     <option value="">🎓 Barcha sinflar</option>
                 </select>
                 <input type="text" id="search-input" placeholder="🔍 Qidirish..." oninput="renderTable()" style="flex:1; margin:0; min-width:140px;">
-                <button class="btn btn-outline" onclick="markAll(true)">✅ Hammasi keldi</button>
-                <button class="btn btn-danger" onclick="clearMonth()">🗑 Oyni tozalash</button>
+                <button class="btn btn-outline admin-only" onclick="markAll(true)">✅ Hammasi keldi</button>
+                <button class="btn btn-danger admin-only" onclick="clearMonth()">🗑 Oyni tozalash</button>
             </div>
             <div id="cls-info" class="chip" style="display:none; margin-bottom:14px;"></div>
+            <div id="plan-wrap" style="display:none;">
+                <div id="plan-text" class="chip" style="border:none; padding:0; font-size:13px;"></div>
+                <div id="plan-track"><div id="plan-fill"></div></div>
+            </div>
             <div class="stats-grid">
                 <div class="stat-card"><span>💰 Tushum</span><h2 id="s-total" style="color:var(--primary)">0</h2></div>
+                <div class="stat-card"><span>🎗 Chegirma</span><h2 id="s-disc" style="color:var(--warn)">0</h2></div>
                 <div class="stat-card"><span>🍽 Chiqim</span><h2 id="s-food" style="color:var(--danger)">0</h2></div>
                 <div class="stat-card"><span>✅ Foyda</span><h2 id="s-net" style="color:var(--success)">0</h2></div>
                 <div class="stat-card"><span>👥 O'quvchilar</span><h2 id="s-count">0</h2></div>
@@ -288,13 +307,14 @@
                     <thead><tr>
                         <th style="width:40px">Tr</th><th style="width:60px">Dars</th>
                         <th onclick="setSort('name')">Ism <span id="arr-name"></span></th>
-                        <th style="width:130px" onclick="setSort('price')">Narx <span id="arr-price"></span></th>
-                        <th style="width:130px">Ovqat</th>
+                        <th style="width:110px" onclick="setSort('price')">Narx <span id="arr-price"></span></th>
+                        <th style="width:100px">Chegirma</th>
+                        <th style="width:110px">Ovqat</th>
                         <th onclick="setSort('net')">Sof <span id="arr-net"></span></th>
                         <th>Holat</th><th></th>
                     </tr></thead>
                     <tbody id="table-body"></tbody>
-                    <tfoot><tr><td colspan="3">JAMI</td><td id="ft-price"></td><td id="ft-food"></td><td id="ft-net"></td><td colspan="2"></td></tr></tfoot>
+                    <tfoot><tr><td colspan="3">JAMI</td><td id="ft-price"></td><td id="ft-disc"></td><td id="ft-food"></td><td id="ft-net"></td><td colspan="2"></td></tr></tfoot>
                 </table>
             </div>
         </div>
@@ -306,8 +326,8 @@
                 <select id="att-cls" onchange="renderAttendance()" style="width:170px; margin:0;">
                     <option value="">🎓 Barcha sinflar</option>
                 </select>
-                <button class="btn btn-success" onclick="markAllDay(true)">✅ Hammasi keldi</button>
-                <button class="btn btn-danger" onclick="markAllDay(false)">❌ Hammasi kelmadi</button>
+                <button class="btn btn-success admin-only" onclick="markAllDay(true)">✅ Hammasi keldi</button>
+                <button class="btn btn-danger admin-only" onclick="markAllDay(false)">❌ Hammasi kelmadi</button>
             </div>
             <div id="att-summary" class="chip" style="display:inline-block; margin-bottom:14px;"></div>
             <div id="att-list"></div>
@@ -316,6 +336,39 @@
                 <table style="min-width:500px;">
                     <thead><tr><th>O'quvchi</th><th>Yozilgan kunlar</th><th>Keldi</th><th>Kelmadi</th></tr></thead>
                     <tbody id="att-month-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAQQOSLASH -->
+        <div id="tab-taqqos" class="tab-page" style="display:none;">
+            <div class="table-container">
+                <h3>🥇 Sinflar taqqoslash — <span id="cmp-title"></span></h3>
+                <table style="min-width:700px;">
+                    <thead><tr><th>Sinf</th><th>O'quvchi</th><th>Tushum</th><th>Ovqat</th><th>Qarz</th><th>Davomat</th></tr></thead>
+                    <tbody id="cmp-body"></tbody>
+                    <tfoot><tr><td>JAMI</td><td id="cft-c"></td><td id="cft-p"></td><td id="cft-f"></td><td id="cft-d"></td><td></td></tr></tfoot>
+                </table>
+            </div>
+            <div class="table-container">
+                <h3>⚠️ Ogohlantirish (2 va undan ko'p oy qarzdorlar)</h3>
+                <table style="min-width:600px;">
+                    <thead><tr><th>O'quvchi</th><th>Holat</th><th style="width:140px">Umumiy qarz</th><th style="width:70px">Amal</th></tr></thead>
+                    <tbody id="warn-body"></tbody>
+                </table>
+            </div>
+            <div class="table-container">
+                <h3>🏅 Namuna to'lovchilar (shu oy to'laganlar)</h3>
+                <table style="min-width:400px;">
+                    <thead><tr><th>O'quvchi</th><th>To'lovi</th></tr></thead>
+                    <tbody id="good-body"></tbody>
+                </table>
+            </div>
+            <div class="table-container">
+                <h3>🎂 Bu oyda tug'ilgan kunlar</h3>
+                <table style="min-width:400px;">
+                    <thead><tr><th>O'quvchi</th><th>Sana</th></tr></thead>
+                    <tbody id="bday-body"></tbody>
                 </table>
             </div>
         </div>
@@ -346,17 +399,21 @@
                 <h3>📈 Yillik natijalar (12 oy)</h3>
                 <div class="chart-box" style="height:320px;"><canvas id="yearChart"></canvas></div>
             </div>
+            <div style="margin-bottom:14px;">
+                <button class="btn btn-outline" onclick="exportYearExcel()">📊 Yillik Excel (12 varaq)</button>
+            </div>
             <div class="stats-grid">
                 <div class="stat-card"><span>💰 Yillik tushum</span><h2 id="y-p" style="color:var(--primary)">0</h2></div>
+                <div class="stat-card"><span>🎗 Chegirma</span><h2 id="y-d" style="color:var(--warn)">0</h2></div>
                 <div class="stat-card"><span>🍽 Ovqat</span><h2 id="y-f" style="color:var(--danger)">0</h2></div>
                 <div class="stat-card"><span>💸 Xarajat</span><h2 id="y-e" style="color:var(--warn)">0</h2></div>
                 <div class="stat-card"><span>🏆 Sof foyda</span><h2 id="y-n" style="color:var(--success)">0</h2></div>
             </div>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>Oy</th><th>O'quvchi</th><th>Tushum</th><th>Ovqat</th><th>Xarajat</th><th>Sof foyda</th></tr></thead>
+                    <thead><tr><th>Oy</th><th>O'quvchi</th><th>Tushum</th><th>Chegirma</th><th>Ovqat</th><th>Xarajat</th><th>Sof foyda</th></tr></thead>
                     <tbody id="year-body"></tbody>
-                    <tfoot><tr><td>JAMI</td><td id="yft-c"></td><td id="yft-p"></td><td id="yft-f"></td><td id="yft-e"></td><td id="yft-n"></td></tr></tfoot>
+                    <tfoot><tr><td>JAMI</td><td id="yft-c"></td><td id="yft-p"></td><td id="yft-d"></td><td id="yft-f"></td><td id="yft-e"></td><td id="yft-n"></td></tr></tfoot>
                 </table>
             </div>
         </div>
@@ -366,20 +423,24 @@
             <div class="table-container">
                 <h3>➕ Yangi to'lov qayd etish</h3>
                 <div class="form-row">
-                    <input id="pay-name" list="names-list" placeholder="Ism Sharif" style="flex:2; min-width:160px;">
+                    <input id="pay-name" list="names-list" placeholder="Ism Sharif" style="flex:2; min-width:150px;">
                     <datalist id="names-list"></datalist>
-                    <input id="pay-amount" type="number" placeholder="Summa (so'm)" style="flex:1; min-width:130px;">
-                    <input id="pay-date" type="date" style="flex:1; min-width:140px;">
-                    <input id="pay-note" placeholder="Izoh (masalan: mart oyi)" style="flex:1; min-width:130px;">
-                    <button class="btn btn-primary" onclick="addPayment()">Qayd etish</button>
+                    <input id="pay-amount" type="number" placeholder="Summa (so'm)" style="flex:1; min-width:120px;">
+                    <select id="pay-type" style="flex:1; min-width:130px;">
+                        <option>💵 Naqd</option><option>💳 Plastik</option><option>🏦 O'tkazma</option>
+                    </select>
+                    <input id="pay-date" type="date" style="flex:1; min-width:135px;">
+                    <input id="pay-note" placeholder="Izoh (mart oyi)" style="flex:1; min-width:120px;">
+                    <button class="btn btn-primary admin-only" onclick="addPayment()">Qayd etish</button>
                 </div>
             </div>
             <div class="table-container">
                 <h3>📚 To'lovlar jurnali</h3>
+                <div id="pay-summary" style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;"></div>
                 <table>
-                    <thead><tr><th style="width:110px">Sana</th><th>Ism</th><th style="width:140px">Summa</th><th>Izoh</th><th style="width:110px">Amal</th></tr></thead>
+                    <thead><tr><th style="width:110px">Sana</th><th>Ism</th><th style="width:130px">Summa</th><th style="width:110px">Tur</th><th>Izoh</th><th style="width:110px">Amal</th></tr></thead>
                     <tbody id="pay-body"></tbody>
-                    <tfoot><tr><td colspan="2">JAMI</td><td id="pay-ft"></td><td colspan="2"></td></tr></tfoot>
+                    <tfoot><tr><td colspan="2">JAMI</td><td id="pay-ft"></td><td colspan="3"></td></tr></tfoot>
                 </table>
             </div>
         </div>
@@ -392,7 +453,7 @@
                     <input id="exp-title" placeholder="Nima uchun?" style="flex:2; min-width:150px;">
                     <input id="exp-amount" type="number" placeholder="Summa (so'm)" style="flex:1; min-width:130px;">
                     <input id="exp-date" type="date" style="flex:1; min-width:140px;">
-                    <button class="btn btn-primary" onclick="addExpense()">Qayd etish</button>
+                    <button class="btn btn-primary admin-only" onclick="addExpense()">Qayd etish</button>
                 </div>
             </div>
             <div class="table-container">
@@ -410,19 +471,20 @@
             <div class="table-container">
                 <h3>➕ Yangi o'quvchi (bir marta kiritiladi!)</h3>
                 <div class="form-row">
-                    <input id="st-name" placeholder="Ism Sharif" style="flex:2; min-width:160px;">
-                    <input id="st-cls" list="cls-list" placeholder="Sinf (1-A)" style="flex:1; min-width:90px;">
+                    <input id="st-name" placeholder="Ism Sharif" style="flex:2; min-width:150px;">
+                    <input id="st-cls" list="cls-list" placeholder="Sinf (1-A)" style="flex:1; min-width:85px;">
                     <datalist id="cls-list"></datalist>
-                    <input id="st-price" type="number" placeholder="Oylik narx" style="flex:1; min-width:110px;">
-                    <input id="st-phone" placeholder="Telefon (WhatsApp)" style="flex:1; min-width:130px;">
-                    <button class="btn btn-primary" onclick="addStudentToBase()">Qo'shish</button>
+                    <input id="st-price" type="number" placeholder="Oylik narx" style="flex:1; min-width:105px;">
+                    <input id="st-phone" placeholder="Telefon (WhatsApp)" style="flex:1; min-width:125px;">
+                    <input id="st-bday" type="date" title="Tug'ilgan kun (ixtiyoriy)" style="flex:1; min-width:135px;">
+                    <button class="btn btn-primary admin-only" onclick="addStudentToBase()">Qo'shish</button>
                 </div>
-                <div class="chip" style="display:inline-block;">💡 Sinf yozganda mavjud sinflar taklif qilinadi — bir xil yozing (masalan hamma joyda «1-A»)</div>
+                <div class="chip" style="display:inline-block;">💡 Tug'ilgan kun kiritsangiz — «📊 Taqqoslash» bo'limida avtomatik ko'rinadi</div>
             </div>
             <div class="table-container">
                 <h3>👨‍🎓 O'quvchilar bazasi (sinf bo'yicha guruhlangan)</h3>
                 <table>
-                    <thead><tr><th>Ism Sharif</th><th style="width:90px">Sinf</th><th style="width:130px">Narx</th><th style="width:150px">Telefon</th><th style="width:120px">Amal</th></tr></thead>
+                    <thead><tr><th>Ism Sharif</th><th style="width:80px">Sinf</th><th style="width:120px">Narx</th><th style="width:140px">Telefon</th><th style="width:100px">Tug. kun</th><th style="width:120px">Amal</th></tr></thead>
                     <tbody id="base-body"></tbody>
                 </table>
             </div>
@@ -431,13 +493,23 @@
 
     <!-- SOZLAMALAR -->
     <div id="modal-settings" class="modal-overlay">
-        <div class="card">
+        <div class="card" style="max-height:90vh; overflow-y:auto;">
             <h3 style="margin-top:0;">⚙️ Sozlamalar</h3>
-            <input type="text" id="set-user" placeholder="Login">
-            <input type="text" id="set-pass" placeholder="Parol">
+            <input type="text" id="set-user" placeholder="Asosiy login">
+            <input type="text" id="set-pass" placeholder="Asosiy parol">
+            <div style="border-top:1px solid var(--border); margin:6px 0 12px; padding-top:10px;">
+                <div class="chip" style="margin-bottom:8px;">👥 Ikkinchi akkaunt (o'rinbosar)</div>
+                <input type="text" id="set-user2" placeholder="2-akkaunt login (bo'sh = o'chirilgan)">
+                <input type="text" id="set-pass2" placeholder="2-akkaunt parol">
+                <select id="set-role2">
+                    <option value="view">Faqat ko'rish va kitob yuritish cheklangan</option>
+                    <option value="full">To'liq huquqli</option>
+                </select>
+            </div>
             <input type="text" id="set-org" placeholder="Muassasa nomi (chek uchun)">
             <input type="text" id="set-phone" placeholder="Telefon (parol tiklash uchun)">
             <input type="number" id="set-price" placeholder="Standart oylik narx">
+            <input type="number" id="set-plan" placeholder="Oylik reja (so'm) — progress bar uchun">
             <input type="text" id="set-tg-token" placeholder="Telegram Bot Token">
             <input type="text" id="set-chat-id" placeholder="Telegram Chat ID">
             <div style="display:flex; gap:10px;">
@@ -456,14 +528,25 @@
         </div>
     </div>
 
+    <!-- SAVAT -->
+    <div id="modal-trash" class="modal-overlay">
+        <div class="card" style="max-width:560px; max-height:85vh; overflow-y:auto;">
+            <h3 style="margin-top:0;">🗑 Savat (oxirgi 50 ta o'chirilgan)</h3>
+            <div id="trash-body"></div>
+            <button class="btn btn-outline" style="margin-top:10px;" onclick="closeModal('modal-trash')">Yopish</button>
+        </div>
+    </div>
+
     <script>
-        let myChart, donutChart, yearChart;
+        let myChart, donutChart, yearChart, deferredPrompt = null;
         let sortKey = null, sortDir = 1, currentTab = 'hisob';
         const MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
+        const PAY_TYPES = ['💵 Naqd', '💳 Plastik', "🏦 O'tkazma"];
         const esc = s => String(s ?? '').replace(/"/g,'&quot;').replace(/</g,'&lt;');
         const js  = s => String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const fmt = n => (+n||0).toLocaleString();
         const todayStr = () => new Date().toISOString().slice(0,10);
+        const sofOf = s => (+s.price||0)-(+s.disc||0)-(+s.food||0);
 
         const arr = v => !v ? [] : (Array.isArray(v) ? v.filter(x=>x) : Object.values(v).filter(x=>x));
         const monthData = m => arr((window.archiveData||{})[m]);
@@ -471,8 +554,10 @@
         const payList = () => arr(window.payments);
         const expList = () => arr(window.expenses);
         const baseFind = n => baseStudents().find(b => String(b.name).trim().toLowerCase() === String(n).trim().toLowerCase());
-        // Yozuv sinfi: o'zida yoki bazadan
         const clsOf = s => String(s.cls||'').trim() || String((baseFind(s.name)||{}).cls||'').trim() || '';
+
+        const isViewer = () => sessionStorage.getItem('role') === 'viewer';
+        const needAdmin = () => { if (isViewer()) { toast("Sizda faqat ko'rish huquqi bor 👀", 'warn'); return true; } return false; };
 
         function toast(msg, type='ok') {
             const t = document.createElement('div'); t.className='toast '+type; t.innerText=msg;
@@ -485,20 +570,31 @@
             el.innerText = map[window.cloudStatus] || '';
         }
 
+        /* ---------- KIRISH (2-akkaunt qo'llab-quvvatlashi bilan) ---------- */
         function handleLogin() {
             try {
                 const cfg = window.config || { user:'admin', pass:'123' };
                 const u = document.getElementById('username').value.trim();
                 const p = document.getElementById('password').value;
-                if (u === cfg.user && p === cfg.pass) {
+                let role = null;
+                if (u === cfg.user && p === cfg.pass) role = 'admin';
+                else if (cfg.user2 && u === cfg.user2 && p === (cfg.pass2||''))
+                    role = (cfg.role2 === 'full') ? 'admin' : 'viewer';
+                if (role) {
                     sessionStorage.setItem('isAuth','true');
-                    showMain(); toast("Xush kelibsiz! 👋");
-                } else alert("Login yoki parol xato!\nStandart: admin / 123");
+                    sessionStorage.setItem('role', role);
+                    if (role === 'viewer') document.body.classList.add('viewer');
+                    showMain();
+                    toast(role === 'viewer' ? "Faqat ko'rish rejimida kirdingiz 👀" : "Xush kelibsiz! 👋");
+                } else {
+                    alert("Login yoki parol xato!\n\nAsosiy: admin / 123\nIkkinchi akkaunt bo'lsa — uni kiriting (⚙️ Sozlamalarda qo'shiladi)");
+                }
             } catch (e) { alert("Texnik xatolik: " + e.message); }
         }
         function showMain() {
             document.getElementById('login-overlay').style.display='none';
             document.getElementById('main-content').style.display='block';
+            if (isViewer()) document.body.classList.add('viewer');
             updateSyncIndicator(); renderCurrentTab();
         }
         function toggleRecover(s){ document.getElementById('recover-form').style.display = s?'block':'none'; }
@@ -519,12 +615,12 @@
         }
         function renderCurrentTab() {
             if (sessionStorage.getItem('isAuth') !== 'true') return;
-            ({ hisob:renderTable, davomat:renderAttendance, qarzdorlar:renderDebts,
-               yillik:renderYear, tolovlar:renderPayments, xarajatlar:renderExpenses,
-               baza:renderStudents })[currentTab]();
+            ({ hisob:renderTable, davomat:renderAttendance, taqqos:renderCompare,
+               qarzdorlar:renderDebts, yillik:renderYear, tolovlar:renderPayments,
+               xarajatlar:renderExpenses, baza:renderStudents })[currentTab]();
         }
 
-        /* ---------- SINFLAR RO'YXATI (barcha selectlarni yangilaydi) ---------- */
+        /* ---------- SINFLAR ---------- */
         function allClasses(){
             const set = new Set();
             baseStudents().forEach(b => { const c = String(b.cls||'').trim(); if (c) set.add(c); });
@@ -533,14 +629,12 @@
         }
         function refreshClassSelects(){
             const classes = allClasses();
-            const opts = count => '<option value="">🎓 Barcha sinflar</option>' +
-                classes.map(c => `<option value="${esc(c)}">${esc(c)}${count?` (${c==='Sinfsiz'?'':baseStudents().filter(b=>String(b.cls||'').trim()===c).length} ta)`:''}</option>`).join('');
-            const f = document.getElementById('cls-filter');
-            if (f) { const cur = f.value; f.innerHTML = opts(true); if (classes.includes(cur)) f.value = cur; }
-            const ac = document.getElementById('att-cls');
-            if (ac) { const cur = ac.value; ac.innerHTML = opts(false); if (classes.includes(cur)) ac.value = cur; }
-            const dc = document.getElementById('debt-cls');
-            if (dc) { const cur = dc.value; dc.innerHTML = opts(false); if (classes.includes(cur)) dc.value = cur; }
+            const opts = '<option value="">🎓 Barcha sinflar</option>' +
+                classes.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+            ['cls-filter','att-cls','debt-cls'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { const cur = el.value; el.innerHTML = opts; if (classes.includes(cur)) el.value = cur; }
+            });
             const dl = document.getElementById('cls-list');
             if (dl) dl.innerHTML = classes.map(c=>`<option value="${esc(c)}">`).join('');
         }
@@ -552,54 +646,55 @@
             const clsF = document.getElementById('cls-filter').value;
             const data = monthData(m);
 
-            // Sinfni aniqlangan qatorlar
             let rows = data.map((s,i)=>({ ...s, _i:i, _cls: clsOf(s) }));
             if (search) rows = rows.filter(s => String(s.name).toLowerCase().includes(search));
             if (clsF) rows = rows.filter(s => s._cls === clsF);
             if (sortKey) rows.sort((a,b) => {
-                const x = sortKey==='net' ? (a.price-a.food) : a[sortKey];
-                const y = sortKey==='net' ? (b.price-b.food) : b[sortKey];
+                const x = sortKey==='net' ? sofOf(a) : a[sortKey];
+                const y = sortKey==='net' ? sofOf(b) : b[sortKey];
                 return sortKey==='name' ? sortDir*String(x).localeCompare(String(y),'uz') : sortDir*((+x||0)-(+y||0));
             });
 
-            // STATISTIKA — faqat ko'rinayotgan (filtrlangan) qatorlardan!
-            let tP=0, tF=0, tDebt=0, attC=0;
+            let tP=0, tD=0, tF=0, tDebt=0, attC=0;
             const counts = { paid:0, partial:0, debt:0 };
             rows.forEach(s => {
-                tP += +s.price||0; tF += +s.food||0;
+                tP += +s.price||0; tD += +s.disc||0; tF += +s.food||0;
                 if (s.att) attC++;
                 if (s.st==='st-paid') counts.paid++;
                 else if (s.st==='st-partial') counts.partial++;
-                else { counts.debt++; tDebt += (+s.price||0)-(+s.food||0); }
+                else { counts.debt++; if (sofOf(s)>0) tDebt += sofOf(s); }
             });
-            const tN = tP - tF;
+            const tN = tP - tD - tF;
 
+            const dis = isViewer() ? 'disabled' : '';
             document.getElementById('table-body').innerHTML = rows.map(s => {
-                const net = (+s.price||0)-(+s.food||0);
                 return `<tr class="${s.st==='st-debt'?'row-debt':''}">
                     <td>${s._i+1}</td>
                     <td><button class="attendance-btn ${s.att?'present':'absent'}" onclick="toggleAtt(${s._i})">${s.att?'✅':'❌'}</button></td>
-                    <td><input class="name-input" value="${esc(s.name)}" onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:auto; max-width:200px;">${s._cls?`<span class="cls-chip">${esc(s._cls)}</span>`:''}</td>
-                    <td><input type="number" value="${s.price}" onchange="update(${s._i},'price',this.value)" style="border:none; width:100px; margin:0;"></td>
-                    <td><input type="number" value="${s.food}" onchange="update(${s._i},'food',this.value)" style="border:none; width:100px; margin:0;"></td>
-                    <td><b>${fmt(net)}</b></td>
+                    <td><input value="${esc(s.name)}" ${dis} onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:auto; max-width:200px;">${s._cls?`<span class="cls-chip">${esc(s._cls)}</span>`:''}</td>
+                    <td><input type="number" value="${s.price}" ${dis} onchange="update(${s._i},'price',this.value)" style="border:none; width:90px; margin:0;"></td>
+                    <td><input type="number" value="${s.disc||0}" ${dis} onchange="update(${s._i},'disc',this.value)" style="border:none; width:80px; margin:0; color:var(--warn);"></td>
+                    <td><input type="number" value="${s.food}" ${dis} onchange="update(${s._i},'food',this.value)" style="border:none; width:90px; margin:0;"></td>
+                    <td><b>${fmt(sofOf(s))}</b></td>
                     <td><button class="status-badge ${s.st}" onclick="nextStatus(${s._i})">${getStatusLabel(s.st)}</button></td>
                     <td style="white-space:nowrap;">
                         <button class="icon-btn" title="Kartochka" onclick="showCard('${js(s.name)}')">👤</button>
-                        <button class="icon-btn" title="Nusxa" onclick="duplicate(${s._i})">📋</button>
-                        <button class="icon-btn" title="O'chirish" onclick="delStudent(${s._i})">🗑</button>
+                        <button class="icon-btn admin-only" title="Nusxa" onclick="duplicate(${s._i})">📋</button>
+                        <button class="icon-btn admin-only" title="O'chirish (savatga)" onclick="delStudent(${s._i})">🗑</button>
                     </td></tr>`;
-            }).join('') || `<tr><td colspan="8" style="text-align:center; color:var(--sub); padding:30px;">
-                ${clsF ? `«${esc(clsF)}» sinfida hozircha yozuv yo'q — «👨‍🎓 Bazadan to'ldirish» bosing`
+            }).join('') || `<tr><td colspan="9" style="text-align:center; color:var(--sub); padding:30px;">
+                ${clsF ? `«${esc(clsF)}» sinfida yozuv yo'q — «👨‍🎓 Bazadan to'ldirish» bosing`
                        : `Ma'lumot yo'q — «+ Talaba» yoki «Bazadan to'ldirish» bosing`}</td></tr>`;
 
             document.getElementById('s-total').innerText = fmt(tP);
+            document.getElementById('s-disc').innerText = fmt(tD);
             document.getElementById('s-food').innerText = fmt(tF);
             document.getElementById('s-net').innerText = fmt(tN);
             document.getElementById('s-count').innerText = rows.length;
             document.getElementById('s-att').innerText = (rows.length?Math.round(attC/rows.length*100):0)+'%';
             document.getElementById('s-debt').innerText = fmt(tDebt);
             document.getElementById('ft-price').innerText = fmt(tP);
+            document.getElementById('ft-disc').innerText = fmt(tD);
             document.getElementById('ft-food').innerText = fmt(tF);
             document.getElementById('ft-net').innerText = fmt(tN);
 
@@ -607,24 +702,37 @@
             if (clsF) { info.style.display='inline-block'; info.innerText = `🎓 Hozir: ${clsF} sinfi — barcha hisoblar faqat shu sinf bo'yicha`; }
             else info.style.display='none';
 
+            // Reja vs fakt
+            const plan = +window.config.monthlyPlan || 0;
+            const pw = document.getElementById('plan-wrap');
+            if (plan > 0) {
+                pw.style.display = 'block';
+                const pct = Math.min(100, Math.round(tP/plan*100));
+                document.getElementById('plan-text').innerText =
+                    `🎯 Reja: ${fmt(plan)} so'm — bajarildi: ${fmt(tP)} so'm (${pct}%)`;
+                const fill = document.getElementById('plan-fill');
+                fill.style.width = pct + '%';
+                fill.style.background = pct >= 100 ? 'var(--success)' : 'var(--primary)';
+            } else pw.style.display = 'none';
+
             ['name','price','net'].forEach(k => {
                 document.getElementById('arr-'+k).innerText = (sortKey===k)?(sortDir>0?'▲':'▼'):'';
             });
-            updateCharts(tP, tF, counts);
+            updateCharts(tP, tF, tN, counts);
             updateSyncIndicator();
         }
 
         function setSort(k){ if (sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=1; } renderTable(); }
 
-        function updateCharts(tP, tF, counts) {
+        function updateCharts(tP, tF, tN, counts) {
             const dark = document.body.classList.contains('dark-mode');
             const textC = dark?'#94a3b8':'#64748b', gridC = dark?'#334155':'#e2e8f0';
             if (myChart) myChart.destroy();
             myChart = new Chart(document.getElementById('barChart'), {
                 type:'bar',
-                data:{ labels:['Tushum','Chiqim','Foyda'], datasets:[{ data:[tP,tF,tP-tF], backgroundColor:['#6366f1','#ef4444','#10b981'], borderRadius:10 }] },
+                data:{ labels:['Tushum','Chiqim','Foyda'], datasets:[{ data:[tP,tF,tN], backgroundColor:['#6366f1','#ef4444','#10b981'], borderRadius:10 }] },
                 options:{ maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+" so'm"}} },
-                    scales:{ y:{ beginAtZero:true, suggestedMax:Math.max(10,tP,tF,tP-tF), ticks:{color:textC, precision:0}, grid:{color:gridC} },
+                    scales:{ y:{ beginAtZero:true, suggestedMax:Math.max(10,tP,tF,tN), ticks:{color:textC, precision:0}, grid:{color:gridC} },
                              x:{ ticks:{color:textC}, grid:{display:false} } } }
             });
             if (donutChart) donutChart.destroy();
@@ -635,68 +743,73 @@
             });
         }
 
-        function toggleAtt(i){
+        function toggleAtt(i){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value, s = monthData(m)[i]; if (!s) return;
             s.att = !s.att; if (!s.att) s.food = 0;
             window.saveToCloud(); renderTable();
         }
-        function nextStatus(i){
+        function nextStatus(i){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value, s = monthData(m)[i]; if (!s) return;
             const modes = ['st-debt','st-partial','st-paid'];
             s.st = modes[(modes.indexOf(s.st)+1)%3];
             window.saveToCloud(); renderTable();
         }
-        function addStudent(){
+        function addStudent(){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
-            const clsF = document.getElementById('cls-filter').value; // TANLANGAN SINF avtomatik yoziladi
+            const clsF = document.getElementById('cls-filter').value;
             if (!window.archiveData[m]) window.archiveData[m] = [];
             const dp = parseFloat(window.config.defaultPrice)||0;
-            window.archiveData[m].push({ name:'', cls:clsF, price:dp, food:0, st:'st-debt', att:true });
+            window.archiveData[m].push({ name:'', cls:clsF, price:dp, disc:0, food:0, st:'st-debt', att:true });
             window.saveToCloud(); renderTable();
-            const names = document.querySelectorAll('.name-input');
-            if (names.length) names[names.length-1].focus();
+            const names = document.querySelectorAll('#table-body input');
+            if (names.length) names[0].focus();
         }
-        function duplicate(i){
+        function duplicate(i){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
             const copy = { ...monthData(m)[i], name: monthData(m)[i].name+' (nusxa)' };
             window.archiveData[m].splice(i+1, 0, copy);
             window.saveToCloud(); renderTable(); toast("Nusxa yaratildi 📋");
         }
-        function delStudent(i){
-            if (!confirm("O'chirilsinmi?")) return;
+        function delStudent(i){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
+            const s = monthData(m)[i];
+            if (!confirm(s.name+" o'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
+            window.trash.unshift({ t:'hisob', m, item:{...s}, label:(s.name||'Ism yo\'q')+' ('+m+')', time:Date.now() });
+            if (window.trash.length > 50) window.trash.pop();
             window.archiveData[m].splice(i,1);
-            window.saveToCloud(); renderTable();
+            window.saveToCloud(); window.saveTrash(); renderTable();
         }
-        function update(i, f, v){
+        function update(i, f, v){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
             monthData(m)[i][f] = (f==='name') ? v : parseFloat(v)||0;
             window.saveToCloud(); renderTable();
         }
         function getStatusLabel(st){ return st==='st-paid'?"TO'LANDI":st==='st-partial'?'QISMAN':'QARZ'; }
-        function markAll(att){
+        function markAll(att){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
             monthData(m).forEach(s => { s.att = att; if (!att) s.food = 0; });
             window.saveToCloud(); renderTable(); toast("Davomat belgilandi ✅");
         }
-        function clearMonth(){
+        function clearMonth(){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
-            if (!confirm(m+" oyidagi BARCHA ma'lumot o'chirilsinmi?!")) return;
+            const n = monthData(m).length;
+            if (!confirm(m+" oyidagi BARCHA ma'lumot ("+n+" ta) o'chirilsinmi? Savatdan qaytarish mumkin.")) return;
+            if (n) { window.trash.unshift({ t:'oy', m, items:monthData(m), label:m+' oyi ('+n+' ta yozuv)', time:Date.now() });
+                     if (window.trash.length > 50) window.trash.pop(); window.saveTrash(); }
             window.archiveData[m] = []; window.saveToCloud(); renderTable();
         }
-        function copyPrevMonth(){
+        function copyPrevMonth(){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value, idx = MONTHS.indexOf(m);
-            if (idx<=0) return toast("Yanvardan oldingi oy yo'q!",'err');
+            if (idx<=0) return toast("Yanvardan oldingi oy yo'q!",'warn');
             const prev = monthData(MONTHS[idx-1]);
-            if (!prev.length) return toast("O'tgan oyda ma'lumot yo'q!",'err');
+            if (!prev.length) return toast("O'tgan oyda ma'lumot yo'q!",'warn');
             if (!confirm(MONTHS[idx-1]+" dagi "+prev.length+" ta o'quvchi "+m+" ga ko'chirilsinmi?")) return;
             window.archiveData[m] = prev.map(s=>({ ...s, st:'st-debt', att:true }));
             window.saveToCloud(); renderTable(); toast("Ko'chirildi ✅");
         }
-        function quickFillFromBase(){
+        function quickFillFromBase(){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
             const clsF = document.getElementById('cls-filter').value;
-            // Faqat TANLANGAN SINF o'quvchilari (yoki barchasi)
             let base = baseStudents();
             if (clsF) base = base.filter(b => String(b.cls||'').trim() === clsF);
             if (!base.length) return toast(clsF ? `«${clsF}» sinfi bazada bo'sh! «👨‍🎓 Baza» bo'limida shu sinfga o'quvchi qo'shing.` : "Baza bo'sh! Avval «👨‍🎓 Baza» bo'limida o'quvchi qo'shing.",'warn');
@@ -705,12 +818,45 @@
             base.forEach(b => {
                 const borYozuv = monthData(m).some(s => String(s.name).trim().toLowerCase() === String(b.name).trim().toLowerCase());
                 if (!borYozuv) {
-                    window.archiveData[m].push({ name:b.name, cls:String(b.cls||'').trim(), price:+b.price||0, food:0, st:'st-debt', att:true });
+                    window.archiveData[m].push({ name:b.name, cls:String(b.cls||'').trim(), price:+b.price||0, disc:0, food:0, st:'st-debt', att:true });
                     q++;
                 }
             });
             window.saveToCloud(); renderTable();
             toast(q ? q+" ta o'quvchi qo'shildi ✅" : "Barcha o'quvchilar allaqachon bor 😊");
+        }
+
+        /* ---------- SINF RO'YXATINI CHOP ETISH ---------- */
+        function printClassList(){
+            const m = document.getElementById('month-select').value;
+            const clsF = document.getElementById('cls-filter').value;
+            let rows = monthData(m).map((s,i)=>({ ...s, _i:i, _cls: clsOf(s) }));
+            if (clsF) rows = rows.filter(s => s._cls === clsF);
+            if (!rows.length) return toast("Chop etish uchun ma'lumot yo'q!", 'warn');
+            let tP=0, tD=0, tF=0;
+            rows.forEach(s => { tP+=+s.price||0; tD+=+s.disc||0; tF+=+s.food||0; });
+            const org = window.config.orgName || 'Maktab';
+            const w = window.open('', '_blank', 'width=900,height=700');
+            w.document.write(`<html><head><title>Ro'yxat</title><style>
+                body{font-family:Arial; padding:24px; color:#111;}
+                h2{margin:0 0 2px;} .sub{color:#555; margin-bottom:16px; font-size:13px;}
+                table{width:100%; border-collapse:collapse; font-size:13px;}
+                th,td{border:1px solid #999; padding:7px 9px; text-align:left;}
+                th{background:#eef2ff;}
+                tfoot td{font-weight:bold; background:#f8fafc;}
+                .sig{display:flex; justify-content:space-between; margin-top:40px; font-size:13px;}
+                .sig div{width:40%; border-top:1px solid #333; text-align:center; padding-top:5px;}
+                </style></head><body>
+                <h2>${esc(org)}</h2>
+                <div class="sub">${m} oyi${clsF?' — '+esc(clsF)+' sinfi':''} ro'yxati | Sana: ${new Date().toLocaleDateString('uz-UZ')}</div>
+                <table><thead><tr><th>No</th><th>Ism Sharif</th><th>Sinf</th><th>Narx</th><th>Chegirma</th><th>Ovqat</th><th>Sof</th><th>Holat</th><th>Davomat</th></tr></thead>
+                <tbody>${rows.map((s,i)=>`<tr><td>${i+1}</td><td>${esc(s.name)}</td><td>${esc(s._cls)}</td>
+                    <td>${fmt(s.price)}</td><td>${fmt(s.disc||0)}</td><td>${fmt(s.food)}</td><td>${fmt(sofOf(s))}</td>
+                    <td>${getStatusLabel(s.st)}</td><td>${s.att?'Keldi':'Kelmadi'}</td></tr>`).join('')}</tbody>
+                <tfoot><tr><td colspan="3">JAMI</td><td>${fmt(tP)}</td><td>${fmt(tD)}</td><td>${fmt(tF)}</td><td>${fmt(tP-tD-tF)}</td><td colspan="2"></td></tr></tfoot></table>
+                <div class="sig"><div>Sinf rahbari</div><div>Buxgalter</div></div>
+                <script>window.onload=()=>window.print()<\/script></body></html>`);
+            w.document.close();
         }
 
         /* ---------- KUNLIK DAVOMAT ---------- */
@@ -725,7 +871,7 @@
             MONTHS.forEach(m => monthData(m).forEach(s => {
                 if (s.name && !names.some(n => n.toLowerCase() === String(s.name).toLowerCase())) names.push(s.name);
             }));
-            if (clsF) names = names.filter(n => { const b = baseFind(n); return (b && String(b.cls||'').trim() === clsF); });
+            if (clsF) names = names.filter(n => { const b = baseFind(n); return b && String(b.cls||'').trim() === clsF; });
             const list = document.getElementById('att-list');
             if (!names.length) { list.innerHTML = '<div class="chip">O\'quvchilar yo\'q — avval Baza bo\'limida sinf bilan kiriting</div>'; }
             else {
@@ -757,23 +903,94 @@
             });
             tbody.innerHTML = rows.join('') || '<tr><td colspan="4" style="color:var(--sub); text-align:center;">Bu oyda davomat yozilmagan</td></tr>';
         }
-        function setDayAtt(name, val){
+        function setDayAtt(name, val){ if (needAdmin()) return;
             const date = document.getElementById('att-date').value || todayStr();
             if (!window.attendance[date]) window.attendance[date] = {};
             if (window.attendance[date][name] === val) delete window.attendance[date][name];
             else window.attendance[date][name] = val;
             window.saveAttendance(); renderAttendance();
         }
-        function markAllDay(val){
+        function markAllDay(val){ if (needAdmin()) return;
             const date = document.getElementById('att-date').value || todayStr();
             const clsF = document.getElementById('att-cls').value;
             if (!window.attendance[date]) window.attendance[date] = {};
             const names = new Set();
-            baseStudents().forEach(b => {
-                if (!clsF || String(b.cls||'').trim() === clsF) names.add(b.name);
-            });
+            baseStudents().forEach(b => { if (!clsF || String(b.cls||'').trim() === clsF) names.add(b.name); });
             names.forEach(n => window.attendance[date][n] = val);
             window.saveAttendance(); renderAttendance(); toast("Belgilandi ✅");
+        }
+
+        /* ---------- TAQQOSLASH + OGOLANTIRISH + NAMUNA + TUG'ILGAN KUN ---------- */
+        function renderCompare(){
+            refreshClassSelects();
+            const m = document.getElementById('month-select').value;
+            document.getElementById('cmp-title').innerText = m + ' oyi';
+            const data = monthData(m);
+            const groups = {};
+            data.forEach(s => { const c = clsOf(s) || 'Sinfsiz'; (groups[c]=groups[c]||[]).push(s); });
+            allClasses().forEach(c => { if (!groups[c]) groups[c] = []; });
+
+            let sC=0, sP=0, sF=0, sD=0, sAtt=0, sN=0;
+            const keys = Object.keys(groups).sort();
+            const body = keys.map(c => {
+                const g = groups[c];
+                let p=0, f=0, debt=0, att=0;
+                g.forEach(s => { p+=+s.price||0; f+=+s.food||0; if (s.att) att++; if (s.st==='st-debt' && sofOf(s)>0) debt+=sofOf(s); });
+                sC+=g.length; sP+=p; sF+=f; sD+=debt; sN+=g.length?att:0;
+                const pct = g.length?Math.round(att/g.length*100):0;
+                return `<tr><td><b>🎓 ${esc(c)}</b></td><td>${g.length}</td><td>${fmt(p)}</td><td>${fmt(f)}</td>
+                    <td style="color:${debt>0?'var(--danger)':'var(--success)'}"><b>${fmt(debt)}</b></td><td>${pct}%</td></tr>`;
+            }).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--sub);">Ma\'lumot yo\'q</td></tr>';
+            document.getElementById('cmp-body').innerHTML = body;
+            document.getElementById('cft-c').innerText = sC;
+            document.getElementById('cft-p').innerText = fmt(sP);
+            document.getElementById('cft-f').innerText = fmt(sF);
+            document.getElementById('cft-d').innerText = fmt(sD);
+
+            // Ogohlantirish
+            const namesUniq = [];
+            MONTHS.forEach(mm => monthData(mm).forEach(s => { if (s.name && !namesUniq.includes(s.name)) namesUniq.push(s.name); }));
+            const warn = [];
+            namesUniq.forEach(n => {
+                let ms = [], tot = 0;
+                MONTHS.forEach(mm => {
+                    const s = monthData(mm).find(x => x.name === n);
+                    if (s && s.st === 'st-debt' && sofOf(s) > 0) { ms.push(mm); tot += sofOf(s); }
+                });
+                if (ms.length >= 2) warn.push({ n, c:ms.length, tot, m:ms[ms.length-1] });
+            });
+            window._warn = warn;
+            document.getElementById('warn-body').innerHTML = warn.map((w,i) =>
+                `<tr class="row-debt"><td><b>${esc(w.n)}</b></td><td>⚠️ ${w.c} oy qarzdor (${w.m} gacha)</td>
+                 <td style="color:var(--danger)"><b>${fmt(w.tot)}</b></td>
+                 <td><button class="btn btn-success" style="padding:6px 10px; font-size:12px;" onclick="waWarn(${i})">📱</button></td></tr>`
+            ).join('') || '<tr><td colspan="4" style="text-align:center; color:var(--success); padding:16px;">😊 Ogohlantirish talab qiladigan o\'quvchi yo\'q</td></tr>';
+
+            // Namuna to'lovchilar
+            const good = data.filter(s => s.st==='st-paid' && s.name);
+            document.getElementById('good-body').innerHTML = good.length ? good.map(s =>
+                `<tr><td><b>${esc(s.name)}</b>${clsOf(s)?`<span class="cls-chip">${esc(clsOf(s))}</span>`:''}</td>
+                 <td style="color:var(--success)"><b>${fmt(sofOf(s))} so'm to'landi ✅</b></td></tr>`).join('')
+                : '<tr><td colspan="2" style="color:var(--sub); text-align:center;">Bu oyda hali to\'lovchi yo\'q</td></tr>';
+
+            // Tug'ilgan kunlar
+            const cm = String(new Date().getMonth()+1).padStart(2,'0');
+            const bds = baseStudents().filter(b => b.bday && String(b.bday).slice(5,7) === cm)
+                                       .sort((a,b) => String(a.bday).slice(8) < String(b.bday).slice(8) ? -1 : 1);
+            document.getElementById('bday-body').innerHTML = bds.length ? bds.map(b =>
+                `<tr><td><b>${esc(b.name)}</b>${b.cls?`<span class="cls-chip">${esc(b.cls)}</span>`:''}</td>
+                 <td>🎂 ${String(b.bday).slice(8,10)}.${String(b.bday).slice(5,7)}</td></tr>`).join('')
+                : '<tr><td colspan="2" style="color:var(--sub); text-align:center;">Shu oyda tug\'ilgan kun yo\'q (bazada sana kiritilgan bo\'lsa ko\'rinadi)</td></tr>';
+        }
+        function waWarn(i){
+            const w = window._warn[i];
+            const b = baseFind(w.n);
+            let phone = (b && b.phone) ? String(b.phone).replace(/[^0-9]/g,'') : '';
+            if (!phone) phone = prompt(w.n+" uchun telefon raqam (998XX...)?:") || '';
+            phone = phone.replace(/[^0-9]/g,'');
+            if (!phone) return;
+            const text = encodeURIComponent(`Assalomu alaykum! ${w.n} ${w.c} oy davomida to'lov qilmagan, umumiy qarz: ${fmt(w.tot)} so'm. Iltimos, to'lovni amalga oshiring. Hurmat bilan — ${window.config.orgName||'Maktab'}`);
+            window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
         }
 
         /* ---------- QARZDORLAR ---------- */
@@ -784,7 +1001,7 @@
                 if (s.st === 'st-debt' && s.name) {
                     const c = clsOf(s);
                     if (clsF && c !== clsF) return;
-                    const debt = (+s.price||0)-(+s.food||0);
+                    const debt = sofOf(s);
                     if (debt > 0) { rows.push({ m, name:s.name, cls:c, debt }); total += debt; }
                 }
             }));
@@ -815,17 +1032,17 @@
 
         /* ---------- YILLIK ---------- */
         function renderYear(){
-            const tP=[], tF=[], tE=[], tN=[], tC=[];
-            let sP=0, sF=0, sE=0, sC=0;
+            const tP=[], tD=[], tF=[], tE=[], tN=[], tC=[];
+            let sP=0, sD=0, sF=0, sE=0, sC=0;
             MONTHS.forEach((m,i) => {
                 const data = monthData(m);
-                let p=0, f=0;
-                data.forEach(s => { p += +s.price||0; f += +s.food||0; });
+                let p=0, d=0, f=0;
+                data.forEach(s => { p += +s.price||0; d += +s.disc||0; f += +s.food||0; });
                 const mm = String(i+1).padStart(2,'0');
                 let e = 0;
                 expList().forEach(x => { if (String(x.date||'').slice(5,7) === mm) e += +x.amount||0; });
-                tP.push(p); tF.push(f); tE.push(e); tN.push(p-f-e); tC.push(data.length);
-                sP+=p; sF+=f; sE+=e; sC+=data.length;
+                tP.push(p); tD.push(d); tF.push(f); tE.push(e); tN.push(p-d-f-e); tC.push(data.length);
+                sP+=p; sD+=d; sF+=f; sE+=e; sC+=data.length;
             });
             const dark = document.body.classList.contains('dark-mode');
             const textC = dark?'#94a3b8':'#64748b', gridC = dark?'#334155':'#e2e8f0';
@@ -844,17 +1061,38 @@
                              x:{ ticks:{ color:textC }, grid:{ display:false } } } }
             });
             document.getElementById('y-p').innerText = fmt(sP);
+            document.getElementById('y-d').innerText = fmt(sD);
             document.getElementById('y-f').innerText = fmt(sF);
             document.getElementById('y-e').innerText = fmt(sE);
-            document.getElementById('y-n').innerText = fmt(sP-sF-sE);
+            document.getElementById('y-n').innerText = fmt(sP-sD-sF-sE);
             document.getElementById('year-body').innerHTML = MONTHS.map((m,i) =>
-                `<tr><td><b>${m}</b></td><td>${tC[i]}</td><td>${fmt(tP[i])}</td><td>${fmt(tF[i])}</td><td>${fmt(tE[i])}</td>
+                `<tr><td><b>${m}</b></td><td>${tC[i]}</td><td>${fmt(tP[i])}</td><td>${fmt(tD[i])}</td><td>${fmt(tF[i])}</td><td>${fmt(tE[i])}</td>
                  <td style="color:${tN[i]>=0?'var(--success)':'var(--danger)'}"><b>${fmt(tN[i])}</b></td></tr>`).join('');
             document.getElementById('yft-c').innerText = sC;
             document.getElementById('yft-p').innerText = fmt(sP);
+            document.getElementById('yft-d').innerText = fmt(sD);
             document.getElementById('yft-f').innerText = fmt(sF);
             document.getElementById('yft-e').innerText = fmt(sE);
-            document.getElementById('yft-n').innerText = fmt(sP-sF-sE);
+            document.getElementById('yft-n').innerText = fmt(sP-sD-sF-sE);
+        }
+        function exportYearExcel(){
+            const wb = XLSX.utils.book_new();
+            const sum = [];
+            MONTHS.forEach(m => {
+                const data = monthData(m).map((s,i)=>({
+                    'No':i+1, 'Ism Sharif':s.name, 'Sinf':clsOf(s),
+                    'Narx':+s.price||0, 'Chegirma':+s.disc||0, 'Ovqat':+s.food||0,
+                    'Sof':sofOf(s), 'Holat':getStatusLabel(s.st), 'Davomat':s.att?'Keldi':'Kelmadi' }));
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), m.slice(0,10));
+                let p=0,d=0,f=0; data.forEach(s=>{ p+=s['Narx']; d+=s['Chegirma']; f+=s['Ovqat']; });
+                sum.push({ 'Oy':m, 'O\'quvchi':data.length, 'Tushum':p, 'Chegirma':d, 'Ovqat':f, 'Sof':p-d-f });
+            });
+            sum.push({ 'Oy':'JAMI', 'O\'quvchi':sum.reduce((a,x)=>a+x['O\'quvchi'],0),
+                       'Tushum':sum.reduce((a,x)=>a+x['Tushum'],0), 'Chegirma':sum.reduce((a,x)=>a+x['Chegirma'],0),
+                       'Ovqat':sum.reduce((a,x)=>a+x['Ovqat'],0), 'Sof':sum.reduce((a,x)=>a+x['Sof'],0) });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sum), 'Yillik');
+            XLSX.writeFile(wb, 'Yillik_hisobot.xlsx');
+            toast("Yillik Excel yuklandi 📊");
         }
 
         /* ---------- TO'LOVLAR + CHEK ---------- */
@@ -865,32 +1103,41 @@
             dl.innerHTML = [...names].map(n=>`<option value="${esc(n)}">`).join('');
             const list = payList();
             let total = 0;
+            const byType = {};
+            list.forEach(p => { const t = p.type || '💵 Naqd'; byType[t] = (byType[t]||0) + (+p.amount||0); });
+            document.getElementById('pay-summary').innerHTML =
+                Object.keys(byType).map(t => `<span class="chip">${esc(t)}: <b>${fmt(byType[t])}</b></span>`).join('') ||
+                '<span class="chip">To\'lov yo\'q</span>';
             document.getElementById('pay-body').innerHTML = list.map((p,i) => {
                 total += +p.amount||0;
                 return `<tr><td>${p.date||''}</td><td><b>${esc(p.name)}</b></td>
-                    <td style="color:var(--success)"><b>${fmt(p.amount)}</b></td><td>${esc(p.note||'')}</td>
+                    <td style="color:var(--success)"><b>${fmt(p.amount)}</b></td><td>${esc(p.type||'—')}</td><td>${esc(p.note||'')}</td>
                     <td style="white-space:nowrap;">
                         <button class="icon-btn" title="Chek" onclick="printReceipt(${i})">🖨</button>
-                        <button class="icon-btn" title="O'chirish" onclick="delPayment(${i})">🗑</button>
+                        <button class="icon-btn admin-only" title="O'chirish" onclick="delPayment(${i})">🗑</button>
                     </td></tr>`;
-            }).join('') || '<tr><td colspan="5" style="text-align:center; color:var(--sub); padding:20px;">To\'lovlar yo\'q</td></tr>';
+            }).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--sub); padding:20px;">To\'lovlar yo\'q</td></tr>';
             document.getElementById('pay-ft').innerText = fmt(total);
         }
-        function addPayment(){
+        function addPayment(){ if (needAdmin()) return;
             const name = document.getElementById('pay-name').value.trim();
             const amount = parseFloat(document.getElementById('pay-amount').value)||0;
+            const type = document.getElementById('pay-type').value;
             const date = document.getElementById('pay-date').value || todayStr();
             const note = document.getElementById('pay-note').value.trim();
             if (!name || !amount) return toast("Ism va summani kiriting!",'err');
             if (!window.payments) window.payments = [];
-            window.payments.unshift({ name, amount, date, note });
+            window.payments.unshift({ name, amount, type, date, note });
             window.savePayments(); renderPayments();
             document.getElementById('pay-amount').value=''; document.getElementById('pay-note').value='';
             toast("To'lov qayd etildi ✅ Chek uchun 🖨 bosing");
         }
-        function delPayment(i){
-            if (!confirm("O'chirilsinmi?")) return;
-            window.payments.splice(i,1); window.savePayments(); renderPayments();
+        function delPayment(i){ if (needAdmin()) return;
+            const p = payList()[i];
+            if (!confirm("O'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
+            window.trash.unshift({ t:'tolov', item:{...p}, label:p.name+' — '+fmt(p.amount)+' so\'m', time:Date.now() });
+            if (window.trash.length > 50) window.trash.pop();
+            window.payments.splice(i,1); window.savePayments(); window.saveTrash(); renderPayments();
         }
         function printReceipt(i){
             const p = payList()[i]; if (!p) return;
@@ -908,6 +1155,7 @@
                 <h2>🧾 TO'LOV CHEKI</h2><div class="sub">${esc(org)}</div>
                 <div class="row"><span>Sana:</span><b>${p.date||''}</b></div>
                 <div class="row"><span>Kimdan:</span><b>${esc(p.name)}</b></div>
+                <div class="row"><span>Turi:</span><b>${esc(p.type||'—')}</b></div>
                 <div class="row"><span>Muddat:</span><b>${esc(p.note||'—')}</b></div>
                 <div class="row"><span>Chek №:</span><b>${String(Date.now()).slice(-6)}</b></div>
                 <div class="amt">${fmt(p.amount)} so'm</div>
@@ -923,11 +1171,11 @@
                 total += +x.amount||0;
                 return `<tr><td>${x.date||''}</td><td><b>${esc(x.title)}</b></td>
                     <td style="color:var(--warn)"><b>${fmt(x.amount)}</b></td>
-                    <td><button class="icon-btn" onclick="delExpense(${i})">🗑</button></td></tr>`;
+                    <td><button class="icon-btn admin-only" onclick="delExpense(${i})">🗑</button></td></tr>`;
             }).join('') || '<tr><td colspan="4" style="text-align:center; color:var(--sub); padding:20px;">Xarajatlar yo\'q</td></tr>';
             document.getElementById('exp-ft').innerText = fmt(total);
         }
-        function addExpense(){
+        function addExpense(){ if (needAdmin()) return;
             const title = document.getElementById('exp-title').value.trim();
             const amount = parseFloat(document.getElementById('exp-amount').value)||0;
             const date = document.getElementById('exp-date').value || todayStr();
@@ -938,17 +1186,57 @@
             document.getElementById('exp-title').value=''; document.getElementById('exp-amount').value='';
             toast("Xarajat qayd etildi ✅");
         }
-        function delExpense(i){
-            if (!confirm("O'chirilsinmi?")) return;
-            window.expenses.splice(i,1); window.saveExpenses(); renderExpenses();
+        function delExpense(i){ if (needAdmin()) return;
+            const x = expList()[i];
+            if (!confirm("O'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
+            window.trash.unshift({ t:'xarajat', item:{...x}, label:x.title+' — '+fmt(x.amount)+' so\'m', time:Date.now() });
+            if (window.trash.length > 50) window.trash.pop();
+            window.expenses.splice(i,1); window.saveExpenses(); window.saveTrash(); renderExpenses();
         }
 
-        /* ---------- BAZA (sinf bo'yicha guruhlangan) ---------- */
+        /* ---------- SAVAT ---------- */
+        function openTrash(){
+            const list = arr(window.trash);
+            const emo = { hisob:'💰', baza:'👨‍🎓', tolov:'🧾', xarajat:'💸', oy:'📅' };
+            document.getElementById('trash-body').innerHTML = list.length ? list.map((x,i) =>
+                `<div class="att-row"><div><b>${emo[x.t]||'📦'} ${esc(x.label||'')}</b>
+                 <div style="font-size:11px; color:var(--sub);">${new Date(x.time).toLocaleString('uz-UZ')}</div></div>
+                 <button class="btn btn-success admin-only" style="padding:7px 12px; font-size:12px;" onclick="restoreTrash(${i})">♻️ Qaytarish</button></div>`).join('')
+                : '<div class="chip">Savat bo\'sh 😊</div>';
+            document.getElementById('modal-trash').style.display = 'flex';
+        }
+        function restoreTrash(i){ if (needAdmin()) return;
+            const x = arr(window.trash)[i]; if (!x) return;
+            if (x.t === 'hisob') {
+                if (!window.archiveData[x.m]) window.archiveData[x.m] = [];
+                arr(window.archiveData[x.m]).push ? null : null;
+                if (Array.isArray(window.archiveData[x.m])) window.archiveData[x.m].push(x.item);
+                else { const a = Object.values(window.archiveData[x.m]); a.push(x.item); window.archiveData[x.m] = a; }
+                window.saveToCloud();
+            } else if (x.t === 'baza') {
+                if (!Array.isArray(window.students)) window.students = arr(window.students);
+                window.students.push(x.item); window.saveStudents();
+            } else if (x.t === 'tolov') {
+                if (!Array.isArray(window.payments)) window.payments = arr(window.payments);
+                window.payments.unshift(x.item); window.savePayments();
+            } else if (x.t === 'xarajat') {
+                if (!Array.isArray(window.expenses)) window.expenses = arr(window.expenses);
+                window.expenses.unshift(x.item); window.saveExpenses();
+            } else if (x.t === 'oy') {
+                const cur = arr(window.archiveData[x.m]);
+                window.archiveData[x.m] = cur.concat(arr(x.items));
+                window.saveToCloud();
+            }
+            window.trash.splice(i,1); window.saveTrash();
+            openTrash(); renderCurrentTab(); toast("Qaytarildi ♻️");
+        }
+
+        /* ---------- BAZA ---------- */
         function renderStudents(){
             const tbody = document.getElementById('base-body'); if (!tbody) return;
             const list = baseStudents();
             if (!list.length) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--sub); padding:20px;">Baza bo\'sh — yuqoridan o\'quvchi qo\'shing</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--sub); padding:20px;">Baza bo\'sh — yuqoridan o\'quvchi qo\'shing</td></tr>';
                 refreshClassSelects(); return;
             }
             const groups = {};
@@ -958,43 +1246,52 @@
             });
             let html = '';
             Object.keys(groups).sort().forEach(c => {
-                html += `<tr class="group-row"><td colspan="5">🎓 ${esc(c)} — ${groups[c].length} ta o'quvchi</td></tr>`;
-                html += groups[c].map(b =>
-                    `<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.cls||'—')}</td><td>${fmt(b.price)}</td><td>${esc(b.phone||'—')}</td>
+                html += `<tr class="group-row"><td colspan="6">🎓 ${esc(c)} — ${groups[c].length} ta o'quvchi</td></tr>`;
+                html += groups[c].map(b => {
+                    const bd = b.bday ? String(b.bday).slice(8,10)+'.'+String(b.bday).slice(5,7) : '—';
+                    return `<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.cls||'—')}</td><td>${fmt(b.price)}</td>
+                     <td>${esc(b.phone||'—')}</td><td>${bd}</td>
                      <td style="white-space:nowrap;">
                         <button class="icon-btn" title="Kartochka" onclick="showCard('${js(b.name)}')">👤</button>
-                        <button class="icon-btn" title="Tahrirlash" onclick="editBase(${b._i})">✏️</button>
-                        <button class="icon-btn" title="O'chirish" onclick="delBase(${b._i})">🗑</button>
-                     </td></tr>`).join('');
+                        <button class="icon-btn admin-only" title="Tahrirlash" onclick="editBase(${b._i})">✏️</button>
+                        <button class="icon-btn admin-only" title="O'chirish" onclick="delBase(${b._i})">🗑</button>
+                     </td></tr>`;
+                }).join('');
             });
             tbody.innerHTML = html;
             refreshClassSelects();
         }
-        function addStudentToBase(){
+        function addStudentToBase(){ if (needAdmin()) return;
             const name = document.getElementById('st-name').value.trim();
             const cls = document.getElementById('st-cls').value.trim();
             const price = parseFloat(document.getElementById('st-price').value)||0;
             const phone = document.getElementById('st-phone').value.trim();
+            const bday = document.getElementById('st-bday').value || '';
             if (!name) return toast("Ismni kiriting!",'err');
             if (!cls) return toast("Sinfni kiriting (masalan: 1-A)!",'err');
             if (!window.students) window.students = [];
-            window.students.push({ name, cls, price, phone });
+            window.students.push({ name, cls, price, phone, bday });
             window.saveStudents(); renderStudents();
-            document.getElementById('st-name').value=''; document.getElementById('st-price').value=''; document.getElementById('st-phone').value='';
+            document.getElementById('st-name').value=''; document.getElementById('st-price').value='';
+            document.getElementById('st-phone').value=''; document.getElementById('st-bday').value='';
             toast(`«${cls}» sinfiga qo'shildi ✅`);
         }
-        function editBase(i){
+        function editBase(i){ if (needAdmin()) return;
             const b = baseStudents()[i];
             const name = prompt("Ism:", b.name); if (name===null) return;
             const cls = prompt("Sinf:", b.cls||''); if (cls===null) return;
             const price = prompt("Oylik narx:", b.price); if (price===null) return;
             const phone = prompt("Telefon:", b.phone||''); if (phone===null) return;
-            window.students[i] = { name:name.trim()||b.name, cls:cls.trim(), price:parseFloat(price)||0, phone:phone.trim() };
+            const bday = prompt("Tug'ilgan kun (YYYY-MM-DD yoki bo'sh):", b.bday||''); if (bday===null) return;
+            window.students[i] = { name:name.trim()||b.name, cls:cls.trim(), price:parseFloat(price)||0, phone:phone.trim(), bday:bday.trim() };
             window.saveStudents(); renderStudents();
         }
-        function delBase(i){
-            if (!confirm(baseStudents()[i].name+" bazadan o'chirilsinmi? (Oylardagi yozuvlar qoladi)")) return;
-            window.students.splice(i,1); window.saveStudents(); renderStudents();
+        function delBase(i){ if (needAdmin()) return;
+            const b = baseStudents()[i];
+            if (!confirm(b.name+" bazadan o'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
+            window.trash.unshift({ t:'baza', item:{...b}, label:b.name+' (baza)', time:Date.now() });
+            if (window.trash.length > 50) window.trash.pop();
+            window.students.splice(i,1); window.saveStudents(); window.saveTrash(); renderStudents();
         }
 
         /* ---------- KARTOCHKA ---------- */
@@ -1002,14 +1299,14 @@
             document.getElementById('card-name').innerText = name;
             const b = baseFind(name);
             let html = '';
-            if (b) html += `<div class="chip" style="display:inline-block; margin-bottom:10px;">Sinf: ${esc(b.cls||'—')} | Narx: ${fmt(b.price)} | Tel: ${esc(b.phone||'—')}</div>`;
-            html += '<h4 style="margin:10px 0 6px;">📅 Oylik hisob</h4><table style="min-width:0;"><thead><tr><th>Oy</th><th>Narx</th><th>Ovqat</th><th>Holat</th></tr></thead><tbody>';
+            if (b) html += `<div class="chip" style="display:inline-block; margin-bottom:10px;">Sinf: ${esc(b.cls||'—')} | Narx: ${fmt(b.price)} | Tel: ${esc(b.phone||'—')}${b.bday?' | 🎂 '+b.bday:''}</div>`;
+            html += '<h4 style="margin:10px 0 6px;">📅 Oylik hisob</h4><table style="min-width:0;"><thead><tr><th>Oy</th><th>Narx</th><th>Cheg</th><th>Ovqat</th><th>Holat</th></tr></thead><tbody>';
             let anyM = false;
             MONTHS.forEach(m => {
                 const s = monthData(m).find(x => String(x.name).toLowerCase() === String(name).toLowerCase());
-                if (s) { anyM = true; html += `<tr><td>${m}</td><td>${fmt(s.price)}</td><td>${fmt(s.food)}</td><td>${getStatusLabel(s.st)}</td></tr>`; }
+                if (s) { anyM = true; html += `<tr><td>${m}</td><td>${fmt(s.price)}</td><td>${fmt(s.disc||0)}</td><td>${fmt(s.food)}</td><td>${getStatusLabel(s.st)}</td></tr>`; }
             });
-            if (!anyM) html += '<tr><td colspan="4" style="color:var(--sub)">Yozuv yo\'q</td></tr>';
+            if (!anyM) html += '<tr><td colspan="5" style="color:var(--sub)">Yozuv yo\'q</td></tr>';
             html += '</tbody></table>';
             let kel=0, kelma=0;
             Object.keys(window.attendance||{}).forEach(d => {
@@ -1020,7 +1317,7 @@
             const pays = payList().filter(p => String(p.name).toLowerCase() === String(name).toLowerCase());
             const pTotal = pays.reduce((a,p)=>a+(+p.amount||0),0);
             html += `<h4 style="margin:14px 0 6px;">🧾 To'lovlar (jami: ${fmt(pTotal)} so'm)</h4>`;
-            html += pays.length ? pays.slice(0,10).map(p=>`<div class="chip" style="display:block; margin-bottom:4px;">${p.date||''} — ${fmt(p.amount)} so'm ${esc(p.note||'')}</div>`).join('')
+            html += pays.length ? pays.slice(0,10).map(p=>`<div class="chip" style="display:block; margin-bottom:4px;">${p.date||''} — ${fmt(p.amount)} so'm ${esc(p.type||'')} ${esc(p.note||'')}</div>`).join('')
                  : '<div class="chip">To\'lov yozuvi yo\'q</div>';
             document.getElementById('card-body').innerHTML = html;
             document.getElementById('modal-card').style.display = 'flex';
@@ -1031,9 +1328,13 @@
             const c = window.config;
             document.getElementById('set-user').value = c.user;
             document.getElementById('set-pass').value = c.pass;
+            document.getElementById('set-user2').value = c.user2 || '';
+            document.getElementById('set-pass2').value = c.pass2 || '';
+            document.getElementById('set-role2').value = c.role2 || 'view';
             document.getElementById('set-org').value = c.orgName || '';
             document.getElementById('set-phone').value = c.phone || '';
             document.getElementById('set-price').value = c.defaultPrice || '';
+            document.getElementById('set-plan').value = c.monthlyPlan || '';
             document.getElementById('set-tg-token').value = c.tgToken || '';
             document.getElementById('set-chat-id').value = c.chatId || '';
             document.getElementById('modal-settings').style.display = 'flex';
@@ -1043,9 +1344,13 @@
             window.config = {
                 user: document.getElementById('set-user').value.trim() || 'admin',
                 pass: document.getElementById('set-pass').value || '123',
+                user2: document.getElementById('set-user2').value.trim(),
+                pass2: document.getElementById('set-pass2').value.trim(),
+                role2: document.getElementById('set-role2').value,
                 orgName: document.getElementById('set-org').value.trim() || 'Maktab',
                 phone: document.getElementById('set-phone').value.trim(),
                 defaultPrice: parseFloat(document.getElementById('set-price').value) || 0,
+                monthlyPlan: parseFloat(document.getElementById('set-plan').value) || 0,
                 tgToken: document.getElementById('set-tg-token').value.trim(),
                 chatId: document.getElementById('set-chat-id').value.trim()
             };
@@ -1063,7 +1368,7 @@
             const m = document.getElementById('month-select').value;
             const data = monthData(m).map((s,i)=>({
                 'No':i+1, 'Ism Sharif':s.name, 'Sinf':clsOf(s),
-                'Narx':+s.price||0, 'Ovqat':+s.food||0, 'Sof':(+s.price||0)-(+s.food||0),
+                'Narx':+s.price||0, 'Chegirma':+s.disc||0, 'Ovqat':+s.food||0, 'Sof':sofOf(s),
                 'Holat':getStatusLabel(s.st), 'Davomat':s.att?'Keldi':'Kelmadi' }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
@@ -1075,21 +1380,21 @@
             const doc = new jsPDF();
             const m = document.getElementById('month-select').value;
             const data = monthData(m);
-            let tP=0, tF=0; data.forEach(s=>{ tP+=+s.price||0; tF+=+s.food||0; });
+            let tP=0, tD=0, tF=0; data.forEach(s=>{ tP+=+s.price||0; tD+=+s.disc||0; tF+=+s.food||0; });
             doc.setFontSize(16); doc.text((window.config.orgName||'Maktab')+" — "+m+" oyi", 14, 15);
             doc.setFontSize(10);
-            doc.text("Tushum: "+fmt(tP)+" | Chiqim: "+fmt(tF)+" | Foyda: "+fmt(tP-tF), 14, 22);
+            doc.text("Tushum: "+fmt(tP)+" | Chegirma: "+fmt(tD)+" | Chiqim: "+fmt(tF)+" | Foyda: "+fmt(tP-tD-tF), 14, 22);
             doc.autoTable({ startY:28,
-                head:[['No','Ism','Sinf','Narx','Ovqat','Sof','Holat','Davomat']],
-                body:data.map((s,i)=>[i+1, s.name, clsOf(s), fmt(s.price), fmt(s.food),
-                    fmt((+s.price||0)-(+s.food||0)), getStatusLabel(s.st), s.att?'Keldi':'Kelmadi']),
-                foot:[['','JAMI','',fmt(tP),fmt(tF),fmt(tP-tF),'','']],
+                head:[['No','Ism','Sinf','Narx','Cheg','Ovqat','Sof','Holat','Davomat']],
+                body:data.map((s,i)=>[i+1, s.name, clsOf(s), fmt(s.price), fmt(s.disc||0), fmt(s.food),
+                    fmt(sofOf(s)), getStatusLabel(s.st), s.att?'Keldi':'Kelmadi']),
+                foot:[['','JAMI','',fmt(tP),fmt(tD),fmt(tF),fmt(tP-tD-tF),'','']],
                 styles:{fontSize:9}, headStyles:{fillColor:[99,102,241]} });
             doc.save(`Hisobot_${m}.pdf`); toast("PDF yuklandi 📄");
         }
         function backupJSON(){
             const all = { data:window.archiveData, students:window.students, attendance:window.attendance,
-                          payments:window.payments, expenses:window.expenses };
+                          payments:window.payments, expenses:window.expenses, trash:window.trash };
             const blob = new Blob([JSON.stringify(all,null,2)], {type:'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -1126,12 +1431,29 @@
                 const st = s.st==='st-paid'?'✅':s.st==='st-partial'?'🟡':'🔴';
                 text += `${i+1}. <b>${esc(s.name)}</b>${clsOf(s)?' ('+esc(clsOf(s))+')':''} — ${fmt(s.price)} so'm ${st}\n`;
             });
+            const plan = +c.monthlyPlan || 0;
+            if (plan > 0) text += `\n🎯 Reja: ${fmt(plan)} so'm (${Math.min(100,Math.round(tP/plan*100))}%)`;
             text += `\n💰 Jami tushum: <b>${fmt(tP)} so'm</b>\n📅 ${new Date().toLocaleDateString('uz-UZ')}`;
             fetch(`https://api.telegram.org/bot${c.tgToken}/sendMessage`, {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({ chat_id:c.chatId, text, parse_mode:'HTML' })
             }).then(r=>r.json()).then(res=>res.ok?toast("Telegramga yuborildi! 🤖"):toast("Xatolik: "+(res.description||''),'err'))
               .catch(()=>toast("Internet xatosi!",'err'));
+        }
+
+        /* ---------- PWA (telefonga o'rnatish) ---------- */
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault(); deferredPrompt = e;
+            const b = document.getElementById('install-btn');
+            if (b) b.style.display = 'inline-flex';
+        });
+        function installPWA(){
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(() => {
+                deferredPrompt = null;
+                document.getElementById('install-btn').style.display = 'none';
+            });
         }
 
         /* ---------- BOSHLANG'ICH ---------- */
@@ -1144,9 +1466,20 @@
         ['username','password'].forEach(id =>
             document.getElementById(id).addEventListener('keydown', e=>{ if (e.key==='Enter') handleLogin(); }));
         document.addEventListener('keydown', e=>{
-            if (e.key==='Escape') { closeModal('modal-settings'); closeModal('modal-card'); }
+            if (e.key==='Escape') { closeModal('modal-settings'); closeModal('modal-card'); closeModal('modal-trash'); }
         });
         if (sessionStorage.getItem('isAuth')==='true') showMain();
+
+        // PWA manifest (dinamik yaratiladi — alohida fayl kerak emas)
+        try {
+            const mf = { name:"Maktab Pro", short_name:"Maktab Pro", start_url:location.href,
+                display:"standalone", background_color:"#f8fafc", theme_color:"#6366f1",
+                icons:[{ src:"https://cdn-icons-png.flaticon.com/512/2653/2653500.png", sizes:"512x512", type:"image/png" }] };
+            const l = document.createElement('link');
+            l.rel = 'manifest';
+            l.href = URL.createObjectURL(new Blob([JSON.stringify(mf)], {type:'application/json'}));
+            document.head.appendChild(l);
+        } catch(e){}
 
         setTimeout(() => {
             if (window.cloudStatus === 'yuklanmoqda') { window.cloudStatus = 'oflayn'; updateSyncIndicator(); }
