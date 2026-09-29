@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maktab Buxgalteriya </title>
+    <title>Maktab Buxgalteriya PRO MAX</title>
     <meta property="og:title" content="Maktab Buxgalteriya PRO MAX">
     <meta property="og:description" content="To'liq maktab buxgalteriya tizimi">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2653/2653500.png" type="image/x-icon">
@@ -13,15 +13,39 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- ZAXIRA: qurilma xotirasidan yuklash + Firebase ishlamasa zaxira saqlash -->
     <script>
-        window.archiveData = window.archiveData || {};
-        window.students = window.students || [];
-        window.attendance = window.attendance || {};
-        window.payments = window.payments || [];
-        window.expenses = window.expenses || [];
-        window.config = window.config || { user:'admin', pass:'123', phone:'+998', orgName:'Maktab',
-                                           tgToken:'', chatId:'', defaultPrice:0 };
+        function lsGet(k){ try { return JSON.parse(localStorage.getItem('mb_'+k)); } catch(e){ return null; } }
+        window.archiveData = lsGet('data') || {};
+        window.students    = lsGet('students') || [];
+        window.attendance  = lsGet('attendance') || {};
+        window.payments    = lsGet('payments') || [];
+        window.expenses    = lsGet('expenses') || [];
+        window.config = Object.assign({ user:'admin', pass:'123', phone:'+998', orgName:'Maktab',
+                       tgToken:'', chatId:'', defaultPrice:0 }, lsGet('config') || {});
         window.cloudStatus = 'yuklanmoqda';
+
+        // HAR BIR saqlashda qurilma xotirasiga ham yoziladi — ma'lumot yo'qolmaydi!
+        window.saveLocal = function(){
+            try {
+                localStorage.setItem('mb_data', JSON.stringify(window.archiveData||{}));
+                localStorage.setItem('mb_students', JSON.stringify(window.students||[]));
+                localStorage.setItem('mb_attendance', JSON.stringify(window.attendance||{}));
+                localStorage.setItem('mb_payments', JSON.stringify(window.payments||[]));
+                localStorage.setItem('mb_expenses', JSON.stringify(window.expenses||[]));
+                localStorage.setItem('mb_config', JSON.stringify(window.config||{}));
+            } catch(e){}
+        };
+        window.saveLocal();
+
+        // Agar Firebase yuklanmasa (masalan fayl to'g'ridan-to'g'ri ochilsa) —
+        // saqlash qurilma xotirasiga boradi, ma'lumot YO'QOLMAYDI
+        window.saveToCloud       = window.saveToCloud       || function(){ window.saveLocal(); };
+        window.saveStudents      = window.saveStudents      || function(){ window.saveLocal(); };
+        window.saveAttendance    = window.saveAttendance    || function(){ window.saveLocal(); };
+        window.savePayments      = window.savePayments      || function(){ window.saveLocal(); };
+        window.saveExpenses      = window.saveExpenses      || function(){ window.saveLocal(); };
+        window.saveConfigToCloud = window.saveConfigToCloud || function(){ window.saveLocal(); };
     </script>
 
     <script type="module">
@@ -39,36 +63,87 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        onValue(ref(db, 'accounting/data'), s => {
-            window.archiveData = s.val() || {}; window.cloudStatus = 'ulandi';
+        function lsGet(k){ try { return JSON.parse(localStorage.getItem('mb_'+k)); } catch(e){ return null; } }
+        const bor = v => v && Object.keys(v).length > 0;
+
+        // ---- BULUTDAN O'QISH: bulut bo'sh bo'lsa — qurilma zaxirasidan tiklaymiz ----
+        onValue(ref(db, 'accounting/data'), (snapshot) => {
+            const cloud = snapshot.val();
+            if (bor(cloud)) { window.archiveData = cloud; window.saveLocal(); }
+            else {
+                const local = lsGet('data');
+                if (bor(local)) { window.archiveData = local; set(ref(db,'accounting/data'), local).catch(()=>{}); }
+            }
+            window.cloudStatus = 'ulandi';
             if (typeof renderCurrentTab === 'function') renderCurrentTab();
         });
-        onValue(ref(db, 'accounting/config'), s => {
-            const v = s.val(); if (v && v.user && v.pass) window.config = v;
+
+        onValue(ref(db, 'accounting/config'), (snapshot) => {
+            const v = snapshot.val();
+            if (v && v.user && v.pass) { window.config = v; window.saveLocal(); }
         });
-        onValue(ref(db, 'accounting/students'), s => {
-            window.students = s.val() || [];
+
+        onValue(ref(db, 'accounting/students'), (snapshot) => {
+            const cloud = snapshot.val();
+            if (bor(cloud)) window.students = cloud;
+            else {
+                const local = lsGet('students');
+                if (local && local.length) { window.students = local; set(ref(db,'accounting/students'), local).catch(()=>{}); }
+            }
             if (typeof renderStudents === 'function') renderStudents();
         });
-        onValue(ref(db, 'accounting/attendance'), s => {
-            window.attendance = s.val() || {};
+
+        onValue(ref(db, 'accounting/attendance'), (snapshot) => {
+            const cloud = snapshot.val();
+            if (bor(cloud)) window.attendance = cloud;
+            else {
+                const local = lsGet('attendance');
+                if (bor(local)) { window.attendance = local; set(ref(db,'accounting/attendance'), local).catch(()=>{}); }
+            }
             if (typeof renderAttendance === 'function') renderAttendance();
         });
-        onValue(ref(db, 'accounting/payments'), s => {
-            window.payments = s.val() || [];
+
+        onValue(ref(db, 'accounting/payments'), (snapshot) => {
+            const cloud = snapshot.val();
+            if (bor(cloud)) window.payments = cloud;
+            else {
+                const local = lsGet('payments');
+                if (local && local.length) { window.payments = local; set(ref(db,'accounting/payments'), local).catch(()=>{}); }
+            }
             if (typeof renderPayments === 'function') renderPayments();
         });
-        onValue(ref(db, 'accounting/expenses'), s => {
-            window.expenses = s.val() || [];
+
+        onValue(ref(db, 'accounting/expenses'), (snapshot) => {
+            const cloud = snapshot.val();
+            if (bor(cloud)) window.expenses = cloud;
+            else {
+                const local = lsGet('expenses');
+                if (local && local.length) { window.expenses = local; set(ref(db,'accounting/expenses'), local).catch(()=>{}); }
+            }
             if (typeof renderExpenses === 'function') renderExpenses();
         });
 
-        window.saveToCloud = () => set(ref(db, 'accounting/data'), window.archiveData);
-        window.saveConfigToCloud = () => set(ref(db, 'accounting/config'), window.config);
-        window.saveStudents = () => set(ref(db, 'accounting/students'), window.students);
-        window.saveAttendance = () => set(ref(db, 'accounting/attendance'), window.attendance);
-        window.savePayments = () => set(ref(db, 'accounting/payments'), window.payments);
-        window.saveExpenses = () => set(ref(db, 'accounting/expenses'), window.expenses);
+        // ---- SAQLASH: qurilma + bulut (xato bo'lsa ekranda ko'rinadi) ----
+        function xatoToast(){ if (typeof toast === 'function') toast("⚠️ Bulutga yozilmadi! Ma'lumot qurilmada saqlandi.", 'err'); }
+
+        window.saveToCloud = () => {
+            window.saveLocal();
+            window.cloudStatus = 'saqlanmoqda';
+            if (typeof updateSyncIndicator === 'function') updateSyncIndicator();
+            set(ref(db, 'accounting/data'), window.archiveData)
+                .then(() => { window.cloudStatus = 'saqlandi'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); })
+                .catch(() => { window.cloudStatus = 'xato'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); xatoToast(); });
+        };
+        window.saveStudents = () => { window.saveLocal();
+            set(ref(db, 'accounting/students'), window.students).catch(xatoToast); };
+        window.saveAttendance = () => { window.saveLocal();
+            set(ref(db, 'accounting/attendance'), window.attendance).catch(xatoToast); };
+        window.savePayments = () => { window.saveLocal();
+            set(ref(db, 'accounting/payments'), window.payments).catch(xatoToast); };
+        window.saveExpenses = () => { window.saveLocal();
+            set(ref(db, 'accounting/expenses'), window.expenses).catch(xatoToast); };
+        window.saveConfigToCloud = () => { window.saveLocal();
+            set(ref(db, 'accounting/config'), window.config).catch(xatoToast); };
     </script>
 
     <style>
@@ -230,7 +305,7 @@
             <div id="att-summary" class="chip" style="display:inline-block; margin-bottom:14px;"></div>
             <div id="att-list"></div>
             <div class="table-container" style="margin-top:16px;">
-                <h3>📊 Oylik davomat (tanlangan sana oyi bo'yicha)</h3>
+                <h3>📊 Oylik davomat</h3>
                 <table style="min-width:500px;">
                     <thead><tr><th>O'quvchi</th><th>Yozilgan kunlar</th><th>Keldi</th><th>Kelmadi</th></tr></thead>
                     <tbody id="att-month-body"></tbody>
@@ -372,10 +447,10 @@
         let sortKey = null, sortDir = 1, currentTab = 'hisob';
         const MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
         const esc = s => String(s ?? '').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+        const js  = s => String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const fmt = n => (+n||0).toLocaleString();
         const todayStr = () => new Date().toISOString().slice(0,10);
 
-        /* ---------- MA'LUMOT O'QISH (Firebase obyekt/massiv farqini hal qiladi) ---------- */
         const arr = v => !v ? [] : (Array.isArray(v) ? v.filter(x=>x) : Object.values(v).filter(x=>x));
         const monthData = m => arr((window.archiveData||{})[m]);
         const baseStudents = () => arr(window.students);
@@ -383,18 +458,18 @@
         const expList = () => arr(window.expenses);
         const baseFind = n => baseStudents().find(b => String(b.name).trim().toLowerCase() === String(n).trim().toLowerCase());
 
-        /* ---------- TOAST / SYNC ---------- */
         function toast(msg, type='ok') {
             const t = document.createElement('div'); t.className='toast '+type; t.innerText=msg;
-            document.body.appendChild(t); setTimeout(()=>t.remove(),3000);
+            document.body.appendChild(t); setTimeout(()=>t.remove(),3500);
         }
         function updateSyncIndicator() {
             const el = document.getElementById('sync-status'); if (!el) return;
-            const map = { yuklanmoqda:'☁️ Ulanmoqda...', ulandi:'☁️ Ulangan', saqlandi:'✅ Saqlandi', xato:'⚠️ Ulanish xatosi' };
+            const map = { yuklanmoqda:'☁️ Ulanmoqda...', ulandi:'☁️ Bulutga ulangan', saqlanmoqda:'⏳ Saqlanmoqda...',
+                          saqlandi:'✅ Saqlandi', xato:'⚠️ Bulut xatosi — qurilmada saqlandi',
+                          oflayn:'📴 Oflayn — qurilmada saqlanadi' };
             el.innerText = map[window.cloudStatus] || '';
         }
 
-        /* ---------- KIRISH ---------- */
         function handleLogin() {
             try {
                 const cfg = window.config || { user:'admin', pass:'123' };
@@ -419,7 +494,6 @@
         }
         function logout(){ sessionStorage.clear(); location.reload(); }
 
-        /* ---------- BO'LIMLAR ---------- */
         function switchTab(t) {
             currentTab = t;
             document.querySelectorAll('.tab-page').forEach(p => p.style.display='none');
@@ -432,10 +506,10 @@
             if (sessionStorage.getItem('isAuth') !== 'true') return;
             ({ hisob:renderTable, davomat:renderAttendance, qarzdorlar:renderDebts,
                yillik:renderYear, tolovlar:renderPayments, xarajatlar:renderExpenses,
-               baza:renderStudents } )[currentTab]();
+               baza:renderStudents })[currentTab]();
         }
 
-        /* ---------- HISOB JADVALI ---------- */
+        /* ---------- HISOB ---------- */
         function renderTable() {
             const m = document.getElementById('month-select')?.value; if (!m) return;
             const search = (document.getElementById('search-input').value||'').toLowerCase();
@@ -472,7 +546,7 @@
                     <td><b>${fmt(net)}</b></td>
                     <td><button class="status-badge ${s.st}" onclick="nextStatus(${s._i})">${getStatusLabel(s.st)}</button></td>
                     <td style="white-space:nowrap;">
-                        <button class="icon-btn" title="Kartochka" onclick="showCard('${esc(s.name)}')">👤</button>
+                        <button class="icon-btn" title="Kartochka" onclick="showCard('${js(s.name)}')">👤</button>
                         <button class="icon-btn" title="Nusxa" onclick="duplicate(${s._i})">📋</button>
                         <button class="icon-btn" title="O'chirish" onclick="delStudent(${s._i})">🗑</button>
                     </td></tr>`;
@@ -514,7 +588,6 @@
             });
         }
 
-        /* ---------- HISOB AMALLARI ---------- */
         function toggleAtt(i){
             const m = document.getElementById('month-select').value, s = monthData(m)[i]; if (!s) return;
             s.att = !s.att; if (!s.att) s.food = 0;
@@ -577,13 +650,13 @@
             const base = baseStudents();
             if (!base.length) return toast("Baza bo'sh! Avval «👨‍🎓 Baza» bo'limida o'quvchi qo'shing.",'err');
             if (!window.archiveData[m]) window.archiveData[m] = [];
-            let qoshildi = 0;
+            let q = 0;
             base.forEach(b => {
                 const bor = monthData(m).some(s => String(s.name).trim().toLowerCase() === String(b.name).trim().toLowerCase());
-                if (!bor) { window.archiveData[m].push({ name:b.name, price:+b.price||0, food:0, st:'st-debt', att:true }); qoshildi++; }
+                if (!bor) { window.archiveData[m].push({ name:b.name, price:+b.price||0, food:0, st:'st-debt', att:true }); q++; }
             });
             window.saveToCloud(); renderTable();
-            toast(qoshildi ? qoshildi+" ta o'quvchi qo'shildi ✅" : "Barcha o'quvchilar allaqachon bor 😊");
+            toast(q ? q+" ta o'quvchi qo'shildi ✅" : "Barcha o'quvchilar allaqachon bor 😊");
         }
 
         /* ---------- KUNLIK DAVOMAT ---------- */
@@ -605,8 +678,8 @@
                     return `<div class="att-row">
                         <b>${esc(n)}</b>
                         <div style="display:flex; gap:6px;">
-                            <button class="att-big ${st===true?'on':''}" onclick="setDayAtt('${esc(n)}',true)">✅ Keldi</button>
-                            <button class="att-big ${st===false?'off':''}" onclick="setDayAtt('${esc(n)}',false)">❌ Kelmadi</button>
+                            <button class="att-big ${st===true?'on':''}" onclick="setDayAtt('${js(n)}',true)">✅ Keldi</button>
+                            <button class="att-big ${st===false?'off':''}" onclick="setDayAtt('${js(n)}',false)">❌ Kelmadi</button>
                         </div></div>`;
                 }).join('');
             }
@@ -614,7 +687,6 @@
             const kelmadi = Object.values(day).filter(v=>v===false).length;
             document.getElementById('att-summary').innerText = `📅 ${date} — ✅ ${keldi} keldi, ❌ ${kelmadi} kelmadi`;
 
-            // Oylik jadval
             const ym = date.slice(0,7);
             const tbody = document.getElementById('att-month-body'); const rows = [];
             names.forEach(n => {
@@ -659,7 +731,7 @@
                  <td style="color:var(--danger)"><b>${fmt(r.debt)}</b></td>
                  <td style="white-space:nowrap;">
                     <button class="btn btn-success" style="padding:6px 10px; font-size:12px;" onclick="waSend(${i})">📱 WhatsApp</button>
-                    <button class="icon-btn" onclick="showCard('${esc(r.name)}')">👤</button>
+                    <button class="icon-btn" onclick="showCard('${js(r.name)}')">👤</button>
                  </td></tr>`).join('')
                 || '<tr><td colspan="4" style="text-align:center; color:var(--success); padding:30px;">🎉 Qarzdor yo\'q — hammasi to\'lagan!</td></tr>';
             document.getElementById('debt-ft').innerText = fmt(total);
@@ -721,7 +793,7 @@
             document.getElementById('yft-n').innerText = fmt(sP-sF-sE);
         }
 
-        /* ---------- TO'LOVLAR JURNALI + CHEK ---------- */
+        /* ---------- TO'LOVLAR + CHEK ---------- */
         function renderPayments(){
             const dl = document.getElementById('names-list'); if (!dl) return;
             const names = new Set(baseStudents().map(b=>b.name));
@@ -750,7 +822,7 @@
             window.payments.unshift({ name, amount, date, note });
             window.savePayments(); renderPayments();
             document.getElementById('pay-amount').value=''; document.getElementById('pay-note').value='';
-            toast("To'lov qayd etildi ✅ Chek chiqarish uchun 🖨 bosing");
+            toast("To'lov qayd etildi ✅ Chek uchun 🖨 bosing");
         }
         function delPayment(i){
             if (!confirm("O'chirilsinmi?")) return;
@@ -807,14 +879,14 @@
             window.expenses.splice(i,1); window.saveExpenses(); renderExpenses();
         }
 
-        /* ---------- O'QUVCHILAR BAZASI ---------- */
+        /* ---------- BAZA ---------- */
         function renderStudents(){
             const tbody = document.getElementById('base-body'); if (!tbody) return;
             const list = baseStudents();
             tbody.innerHTML = list.map((b,i) =>
                 `<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.cls||'—')}</td><td>${fmt(b.price)}</td><td>${esc(b.phone||'—')}</td>
                  <td style="white-space:nowrap;">
-                    <button class="icon-btn" title="Kartochka" onclick="showCard('${esc(b.name)}')">👤</button>
+                    <button class="icon-btn" title="Kartochka" onclick="showCard('${js(b.name)}')">👤</button>
                     <button class="icon-btn" title="Tahrirlash" onclick="editBase(${i})">✏️</button>
                     <button class="icon-btn" title="O'chirish" onclick="delBase(${i})">🗑</button>
                  </td></tr>`).join('')
@@ -838,7 +910,7 @@
             window.students.push({ name, cls, price, phone });
             window.saveStudents(); renderStudents();
             document.getElementById('st-name').value=''; document.getElementById('st-price').value=''; document.getElementById('st-phone').value='';
-            toast("Bazaga qo'shildi ✅ Endi har oy «Bazadan to'ldirish» bilan chiqariladi");
+            toast("Bazaga qo'shildi ✅");
         }
         function editBase(i){
             const b = baseStudents()[i];
@@ -854,7 +926,7 @@
             window.students.splice(i,1); window.saveStudents(); renderStudents();
         }
 
-        /* ---------- O'QUVCHI KARTOCHKASI ---------- */
+        /* ---------- KARTOCHKA ---------- */
         function showCard(name){
             document.getElementById('card-name').innerText = name;
             const b = baseFind(name);
@@ -909,7 +981,7 @@
             window.saveConfigToCloud(); toast("Saqlandi ✅"); closeModal('modal-settings');
         }
 
-        /* ---------- TUN REJIMI / EKSPORT / ZAXIRA / TELEGRAM ---------- */
+        /* ---------- TUN / EKSPORT / ZAXIRA / TELEGRAM ---------- */
         function toggleDark(){
             document.body.classList.toggle('dark-mode');
             localStorage.setItem('dark', document.body.classList.contains('dark-mode')?'1':'0');
@@ -1004,6 +1076,16 @@
             if (e.key==='Escape') { closeModal('modal-settings'); closeModal('modal-card'); }
         });
         if (sessionStorage.getItem('isAuth')==='true') showMain();
+
+        // 6 soniyada bulut ulanmasa — oflayn rejim belgisi
+        setTimeout(() => {
+            if (window.cloudStatus === 'yuklanmoqda') { window.cloudStatus = 'oflayn'; updateSyncIndicator(); }
+        }, 6000);
+
+        // Fayl to'g'ridan-to'g'ri ochilgan bo'lsa — ogohlantirish
+        if (location.protocol === 'file:') {
+            setTimeout(() => toast("⚠️ Fayl kompyuterdan ochilgan! Bulut faqat Vercel havolasi orqali ishlaydi. Hozir ma'lumot shu qurilmaga saqlanadi.", 'err'), 1200);
+        }
     </script>
 </body>
 </html>
