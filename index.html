@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maktab Buxgalteriya</title>
+    <title>Maktab Buxgalteriya PRO MAX</title>
     <meta property="og:title" content="Maktab Buxgalteriya PRO MAX">
     <meta property="og:description" content="To'liq maktab buxgalteriya tizimi">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2653/2653500.png" type="image/x-icon">
@@ -13,7 +13,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- ZAXIRA: qurilma xotirasidan yuklash + Firebase ishlamasa zaxira saqlash -->
     <script>
         function lsGet(k){ try { return JSON.parse(localStorage.getItem('mb_'+k)); } catch(e){ return null; } }
         window.archiveData = lsGet('data') || {};
@@ -25,7 +24,6 @@
                        tgToken:'', chatId:'', defaultPrice:0 }, lsGet('config') || {});
         window.cloudStatus = 'yuklanmoqda';
 
-        // HAR BIR saqlashda qurilma xotirasiga ham yoziladi — ma'lumot yo'qolmaydi!
         window.saveLocal = function(){
             try {
                 localStorage.setItem('mb_data', JSON.stringify(window.archiveData||{}));
@@ -38,7 +36,6 @@
         };
         window.saveLocal();
 
-        // Agar Firebase yuklanmasa — saqlash qurilma xotirasiga boradi
         window.saveToCloud       = window.saveToCloud       || function(){ window.saveLocal(); };
         window.saveStudents      = window.saveStudents      || function(){ window.saveLocal(); };
         window.saveAttendance    = window.saveAttendance    || function(){ window.saveLocal(); };
@@ -65,7 +62,6 @@
         function lsGet(k){ try { return JSON.parse(localStorage.getItem('mb_'+k)); } catch(e){ return null; } }
         const bor = v => v && Object.keys(v).length > 0;
 
-        // ---- BULUTDAN O'QISH: bulut bo'sh bo'lsa — qurilma zaxirasidan tiklaymiz ----
         onValue(ref(db, 'accounting/data'), (snapshot) => {
             const cloud = snapshot.val();
             if (bor(cloud)) { window.archiveData = cloud; window.saveLocal(); }
@@ -122,8 +118,14 @@
             if (typeof renderExpenses === 'function') renderExpenses();
         });
 
-        // ---- SAQLASH: qurilma + bulut (xato bo'lsa ekranda ko'rinadi) ----
-        function xatoToast(){ if (typeof toast === 'function') toast("⚠️ Bulutga yozilmadi! Firebase Rules'da '.write': true qiling. Ma'lumot qurilmada saqlandi.", 'err'); }
+        // XATO: sessiyada faqat 1 marta, sariq rangda — bezovta qilmaydi
+        let xatoKorsatildi = false;
+        function xatoToast(){
+            if (xatoKorsatildi) return;
+            xatoKorsatildi = true;
+            if (typeof toast === 'function')
+                toast("ℹ️ Bulutga ulanmadi — ma'lumotlar shu qurilmada xavfsiz saqlanadi. Bulutni yoqish: Firebase → Realtime Database → Rules → '.read': true, '.write': true", 'warn');
+        }
 
         window.saveToCloud = () => {
             window.saveLocal();
@@ -182,6 +184,7 @@
         th:hover { color:var(--primary); }
         td { padding:6px 10px; vertical-align:middle; }
         tr.row-debt td { background:rgba(239,68,68,.06); }
+        tr.group-row td { background:var(--bg); font-weight:800; border-radius:10px; font-size:13px; }
         tfoot td { font-weight:800; border-top:2px solid var(--border); font-size:15px; }
         .status-badge { padding:8px 12px; border-radius:10px; font-size:11px; font-weight:700; border:none; cursor:pointer; width:100px; font-family:inherit; }
         .st-paid { background:#d1fae5; color:#065f46; } .st-partial { background:#fef3c7; color:#92400e; } .st-debt { background:#fee2e2; color:#991b1b; }
@@ -194,8 +197,9 @@
         .icon-btn { background:none; border:none; cursor:pointer; font-size:16px; padding:4px 6px; }
         #sync-status { font-size:12px; color:var(--sub); font-weight:600; }
         .chip { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 14px; font-size:12px; color:var(--sub); font-weight:700; }
-        .toast { position:fixed; bottom:25px; right:25px; padding:14px 22px; border-radius:14px; color:#fff; font-weight:600; font-size:14px; z-index:10000; animation:pop .3s; box-shadow:0 8px 20px rgba(0,0,0,.2); }
-        .toast.ok { background:var(--success); } .toast.err { background:var(--danger); }
+        .cls-chip { display:inline-block; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:1px 8px; font-size:10px; color:var(--sub); font-weight:800; margin-left:6px; }
+        .toast { position:fixed; bottom:25px; right:25px; padding:14px 22px; border-radius:14px; color:#fff; font-weight:600; font-size:13px; z-index:10000; animation:pop .3s; box-shadow:0 8px 20px rgba(0,0,0,.2); max-width:420px; }
+        .toast.ok { background:var(--success); } .toast.err { background:var(--danger); } .toast.warn { background:var(--warn); }
         @keyframes pop { from { transform:translateY(20px); opacity:0; } }
         .form-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
         .form-row input, .form-row select { margin:0; }
@@ -258,18 +262,19 @@
                 <div class="chart-card"><h3>📈 To'lov holati</h3><div class="chart-box"><canvas id="donutChart"></canvas></div></div>
             </div>
             <div class="toolbar">
-                <select id="month-select" onchange="renderTable()" style="width:140px; margin:0;">
+                <select id="month-select" onchange="renderTable()" style="width:130px; margin:0;">
                     <option>Yanvar</option><option>Fevral</option><option>Mart</option><option>Aprel</option>
                     <option>May</option><option>Iyun</option><option>Iyul</option><option>Avgust</option>
                     <option>Sentabr</option><option>Oktabr</option><option>Noyabr</option><option>Dekabr</option>
                 </select>
-                <select id="cls-filter" onchange="renderTable()" style="width:140px; margin:0;">
+                <select id="cls-filter" onchange="renderTable()" style="width:170px; margin:0;">
                     <option value="">🎓 Barcha sinflar</option>
                 </select>
-                <input type="text" id="search-input" placeholder="🔍 Qidirish..." oninput="renderTable()" style="flex:1; margin:0;">
+                <input type="text" id="search-input" placeholder="🔍 Qidirish..." oninput="renderTable()" style="flex:1; margin:0; min-width:140px;">
                 <button class="btn btn-outline" onclick="markAll(true)">✅ Hammasi keldi</button>
                 <button class="btn btn-danger" onclick="clearMonth()">🗑 Oyni tozalash</button>
             </div>
+            <div id="cls-info" class="chip" style="display:none; margin-bottom:14px;"></div>
             <div class="stats-grid">
                 <div class="stat-card"><span>💰 Tushum</span><h2 id="s-total" style="color:var(--primary)">0</h2></div>
                 <div class="stat-card"><span>🍽 Chiqim</span><h2 id="s-food" style="color:var(--danger)">0</h2></div>
@@ -298,6 +303,9 @@
         <div id="tab-davomat" class="tab-page" style="display:none;">
             <div class="toolbar">
                 <input type="date" id="att-date" onchange="renderAttendance()" style="width:auto; margin:0;">
+                <select id="att-cls" onchange="renderAttendance()" style="width:170px; margin:0;">
+                    <option value="">🎓 Barcha sinflar</option>
+                </select>
                 <button class="btn btn-success" onclick="markAllDay(true)">✅ Hammasi keldi</button>
                 <button class="btn btn-danger" onclick="markAllDay(false)">❌ Hammasi kelmadi</button>
             </div>
@@ -314,15 +322,20 @@
 
         <!-- QARZDORLAR -->
         <div id="tab-qarzdorlar" class="tab-page" style="display:none;">
+            <div class="toolbar">
+                <select id="debt-cls" onchange="renderDebts()" style="width:170px; margin:0;">
+                    <option value="">🎓 Barcha sinflar</option>
+                </select>
+            </div>
             <div class="stats-grid">
                 <div class="stat-card"><span>🔴 Umumiy qarz</span><h2 id="d-total" style="color:var(--danger)">0</h2></div>
                 <div class="stat-card"><span>👥 Qarzdorlar</span><h2 id="d-count">0</h2></div>
             </div>
             <div class="table-container">
                 <table>
-                    <thead><tr><th style="width:110px">Oy</th><th>Ism</th><th style="width:140px">Qarz</th><th style="width:200px">Amal</th></tr></thead>
+                    <thead><tr><th style="width:110px">Oy</th><th>Ism</th><th style="width:80px">Sinf</th><th style="width:140px">Qarz</th><th style="width:200px">Amal</th></tr></thead>
                     <tbody id="debt-body"></tbody>
-                    <tfoot><tr><td colspan="2">JAMI</td><td id="debt-ft"></td><td></td></tr></tfoot>
+                    <tfoot><tr><td colspan="3">JAMI</td><td id="debt-ft"></td><td></td></tr></tfoot>
                 </table>
             </div>
         </div>
@@ -398,14 +411,16 @@
                 <h3>➕ Yangi o'quvchi (bir marta kiritiladi!)</h3>
                 <div class="form-row">
                     <input id="st-name" placeholder="Ism Sharif" style="flex:2; min-width:160px;">
-                    <input id="st-cls" placeholder="Sinf (5-A)" style="flex:1; min-width:90px;">
+                    <input id="st-cls" list="cls-list" placeholder="Sinf (1-A)" style="flex:1; min-width:90px;">
+                    <datalist id="cls-list"></datalist>
                     <input id="st-price" type="number" placeholder="Oylik narx" style="flex:1; min-width:110px;">
                     <input id="st-phone" placeholder="Telefon (WhatsApp)" style="flex:1; min-width:130px;">
                     <button class="btn btn-primary" onclick="addStudentToBase()">Qo'shish</button>
                 </div>
+                <div class="chip" style="display:inline-block;">💡 Sinf yozganda mavjud sinflar taklif qilinadi — bir xil yozing (masalan hamma joyda «1-A»)</div>
             </div>
             <div class="table-container">
-                <h3>👨‍🎓 O'quvchilar bazasi</h3>
+                <h3>👨‍🎓 O'quvchilar bazasi (sinf bo'yicha guruhlangan)</h3>
                 <table>
                     <thead><tr><th>Ism Sharif</th><th style="width:90px">Sinf</th><th style="width:130px">Narx</th><th style="width:150px">Telefon</th><th style="width:120px">Amal</th></tr></thead>
                     <tbody id="base-body"></tbody>
@@ -456,16 +471,17 @@
         const payList = () => arr(window.payments);
         const expList = () => arr(window.expenses);
         const baseFind = n => baseStudents().find(b => String(b.name).trim().toLowerCase() === String(n).trim().toLowerCase());
+        // Yozuv sinfi: o'zida yoki bazadan
+        const clsOf = s => String(s.cls||'').trim() || String((baseFind(s.name)||{}).cls||'').trim() || '';
 
         function toast(msg, type='ok') {
             const t = document.createElement('div'); t.className='toast '+type; t.innerText=msg;
-            document.body.appendChild(t); setTimeout(()=>t.remove(),4000);
+            document.body.appendChild(t); setTimeout(()=>t.remove(),5000);
         }
         function updateSyncIndicator() {
             const el = document.getElementById('sync-status'); if (!el) return;
             const map = { yuklanmoqda:'☁️ Ulanmoqda...', ulandi:'☁️ Bulutga ulangan', saqlanmoqda:'⏳ Saqlanmoqda...',
-                          saqlandi:'✅ Saqlandi', xato:'⚠️ Bulut xatosi — qurilmada saqlandi',
-                          oflayn:'📴 Oflayn — qurilmada saqlanadi' };
+                          saqlandi:'✅ Saqlandi', xato:'📴 Qurilmada saqlanadi', oflayn:'📴 Oflayn — qurilmada saqlanadi' };
             el.innerText = map[window.cloudStatus] || '';
         }
 
@@ -508,15 +524,48 @@
                baza:renderStudents })[currentTab]();
         }
 
+        /* ---------- SINFLAR RO'YXATI (barcha selectlarni yangilaydi) ---------- */
+        function allClasses(){
+            const set = new Set();
+            baseStudents().forEach(b => { const c = String(b.cls||'').trim(); if (c) set.add(c); });
+            MONTHS.forEach(m => monthData(m).forEach(s => { const c = clsOf(s); if (c) set.add(c); }));
+            return [...set].sort();
+        }
+        function refreshClassSelects(){
+            const classes = allClasses();
+            const opts = count => '<option value="">🎓 Barcha sinflar</option>' +
+                classes.map(c => `<option value="${esc(c)}">${esc(c)}${count?` (${c==='Sinfsiz'?'':baseStudents().filter(b=>String(b.cls||'').trim()===c).length} ta)`:''}</option>`).join('');
+            const f = document.getElementById('cls-filter');
+            if (f) { const cur = f.value; f.innerHTML = opts(true); if (classes.includes(cur)) f.value = cur; }
+            const ac = document.getElementById('att-cls');
+            if (ac) { const cur = ac.value; ac.innerHTML = opts(false); if (classes.includes(cur)) ac.value = cur; }
+            const dc = document.getElementById('debt-cls');
+            if (dc) { const cur = dc.value; dc.innerHTML = opts(false); if (classes.includes(cur)) dc.value = cur; }
+            const dl = document.getElementById('cls-list');
+            if (dl) dl.innerHTML = classes.map(c=>`<option value="${esc(c)}">`).join('');
+        }
+
         /* ---------- HISOB ---------- */
         function renderTable() {
             const m = document.getElementById('month-select')?.value; if (!m) return;
             const search = (document.getElementById('search-input').value||'').toLowerCase();
             const clsF = document.getElementById('cls-filter').value;
             const data = monthData(m);
+
+            // Sinfni aniqlangan qatorlar
+            let rows = data.map((s,i)=>({ ...s, _i:i, _cls: clsOf(s) }));
+            if (search) rows = rows.filter(s => String(s.name).toLowerCase().includes(search));
+            if (clsF) rows = rows.filter(s => s._cls === clsF);
+            if (sortKey) rows.sort((a,b) => {
+                const x = sortKey==='net' ? (a.price-a.food) : a[sortKey];
+                const y = sortKey==='net' ? (b.price-b.food) : b[sortKey];
+                return sortKey==='name' ? sortDir*String(x).localeCompare(String(y),'uz') : sortDir*((+x||0)-(+y||0));
+            });
+
+            // STATISTIKA — faqat ko'rinayotgan (filtrlangan) qatorlardan!
             let tP=0, tF=0, tDebt=0, attC=0;
             const counts = { paid:0, partial:0, debt:0 };
-            data.forEach(s => {
+            rows.forEach(s => {
                 tP += +s.price||0; tF += +s.food||0;
                 if (s.att) attC++;
                 if (s.st==='st-paid') counts.paid++;
@@ -525,28 +574,12 @@
             });
             const tN = tP - tF;
 
-            let rows = data.map((s,i)=>({ ...s, _i:i }));
-            if (search) rows = rows.filter(s => String(s.name).toLowerCase().includes(search));
-            // TUZATILGAN: sinf ham yozuvdan, ham bazadan tekshiriladi
-            if (clsF) rows = rows.filter(s => {
-                if (String(s.cls||'') === clsF) return true;
-                const b = baseFind(s.name);
-                return b && String(b.cls||'') === clsF;
-            });
-            if (sortKey) rows.sort((a,b) => {
-                const x = sortKey==='net' ? (a.price-a.food) : a[sortKey];
-                const y = sortKey==='net' ? (b.price-b.food) : b[sortKey];
-                return sortKey==='name' ? sortDir*String(x).localeCompare(String(y),'uz') : sortDir*((+x||0)-(+y||0));
-            });
-
             document.getElementById('table-body').innerHTML = rows.map(s => {
                 const net = (+s.price||0)-(+s.food||0);
-                const clsB = baseFind(s.name);
-                const clsTxt = s.cls || (clsB ? clsB.cls : '');
                 return `<tr class="${s.st==='st-debt'?'row-debt':''}">
                     <td>${s._i+1}</td>
                     <td><button class="attendance-btn ${s.att?'present':'absent'}" onclick="toggleAtt(${s._i})">${s.att?'✅':'❌'}</button></td>
-                    <td><input class="name-input" value="${esc(s.name)}" onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:100%;">${clsTxt?`<span class="chip" style="font-size:10px; padding:2px 8px;">${esc(clsTxt)}</span>`:''}</td>
+                    <td><input class="name-input" value="${esc(s.name)}" onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:auto; max-width:200px;">${s._cls?`<span class="cls-chip">${esc(s._cls)}</span>`:''}</td>
                     <td><input type="number" value="${s.price}" onchange="update(${s._i},'price',this.value)" style="border:none; width:100px; margin:0;"></td>
                     <td><input type="number" value="${s.food}" onchange="update(${s._i},'food',this.value)" style="border:none; width:100px; margin:0;"></td>
                     <td><b>${fmt(net)}</b></td>
@@ -556,17 +589,24 @@
                         <button class="icon-btn" title="Nusxa" onclick="duplicate(${s._i})">📋</button>
                         <button class="icon-btn" title="O'chirish" onclick="delStudent(${s._i})">🗑</button>
                     </td></tr>`;
-            }).join('') || `<tr><td colspan="8" style="text-align:center; color:var(--sub); padding:30px;">Ma'lumot yo'q — «+ Talaba» yoki «Bazadan to'ldirish» tugmasini bosing</td></tr>`;
+            }).join('') || `<tr><td colspan="8" style="text-align:center; color:var(--sub); padding:30px;">
+                ${clsF ? `«${esc(clsF)}» sinfida hozircha yozuv yo'q — «👨‍🎓 Bazadan to'ldirish» bosing`
+                       : `Ma'lumot yo'q — «+ Talaba» yoki «Bazadan to'ldirish» bosing`}</td></tr>`;
 
             document.getElementById('s-total').innerText = fmt(tP);
             document.getElementById('s-food').innerText = fmt(tF);
             document.getElementById('s-net').innerText = fmt(tN);
-            document.getElementById('s-count').innerText = data.length;
-            document.getElementById('s-att').innerText = (data.length?Math.round(attC/data.length*100):0)+'%';
+            document.getElementById('s-count').innerText = rows.length;
+            document.getElementById('s-att').innerText = (rows.length?Math.round(attC/rows.length*100):0)+'%';
             document.getElementById('s-debt').innerText = fmt(tDebt);
             document.getElementById('ft-price').innerText = fmt(tP);
             document.getElementById('ft-food').innerText = fmt(tF);
             document.getElementById('ft-net').innerText = fmt(tN);
+
+            const info = document.getElementById('cls-info');
+            if (clsF) { info.style.display='inline-block'; info.innerText = `🎓 Hozir: ${clsF} sinfi — barcha hisoblar faqat shu sinf bo'yicha`; }
+            else info.style.display='none';
+
             ['name','price','net'].forEach(k => {
                 document.getElementById('arr-'+k).innerText = (sortKey===k)?(sortDir>0?'▲':'▼'):'';
             });
@@ -584,7 +624,6 @@
                 type:'bar',
                 data:{ labels:['Tushum','Chiqim','Foyda'], datasets:[{ data:[tP,tF,tP-tF], backgroundColor:['#6366f1','#ef4444','#10b981'], borderRadius:10 }] },
                 options:{ maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>c.raw.toLocaleString()+" so'm"}} },
-                    // TUZATILGAN: butun sonlar, g'alati kasr raqamlar yo'q
                     scales:{ y:{ beginAtZero:true, suggestedMax:Math.max(10,tP,tF,tP-tF), ticks:{color:textC, precision:0}, grid:{color:gridC} },
                              x:{ ticks:{color:textC}, grid:{display:false} } } }
             });
@@ -609,9 +648,10 @@
         }
         function addStudent(){
             const m = document.getElementById('month-select').value;
+            const clsF = document.getElementById('cls-filter').value; // TANLANGAN SINF avtomatik yoziladi
             if (!window.archiveData[m]) window.archiveData[m] = [];
             const dp = parseFloat(window.config.defaultPrice)||0;
-            window.archiveData[m].push({ name:'', cls:'', price:dp, food:0, st:'st-debt', att:true });
+            window.archiveData[m].push({ name:'', cls:clsF, price:dp, food:0, st:'st-debt', att:true });
             window.saveToCloud(); renderTable();
             const names = document.querySelectorAll('.name-input');
             if (names.length) names[names.length-1].focus();
@@ -630,7 +670,7 @@
         }
         function update(i, f, v){
             const m = document.getElementById('month-select').value;
-            monthData(m)[i][f] = (f==='name'||f==='cls') ? v : parseFloat(v)||0;
+            monthData(m)[i][f] = (f==='name') ? v : parseFloat(v)||0;
             window.saveToCloud(); renderTable();
         }
         function getStatusLabel(st){ return st==='st-paid'?"TO'LANDI":st==='st-partial'?'QISMAN':'QARZ'; }
@@ -655,14 +695,19 @@
         }
         function quickFillFromBase(){
             const m = document.getElementById('month-select').value;
-            const base = baseStudents();
-            if (!base.length) return toast("Baza bo'sh! Avval «👨‍🎓 Baza» bo'limida o'quvchi qo'shing.",'err');
+            const clsF = document.getElementById('cls-filter').value;
+            // Faqat TANLANGAN SINF o'quvchilari (yoki barchasi)
+            let base = baseStudents();
+            if (clsF) base = base.filter(b => String(b.cls||'').trim() === clsF);
+            if (!base.length) return toast(clsF ? `«${clsF}» sinfi bazada bo'sh! «👨‍🎓 Baza» bo'limida shu sinfga o'quvchi qo'shing.` : "Baza bo'sh! Avval «👨‍🎓 Baza» bo'limida o'quvchi qo'shing.",'warn');
             if (!window.archiveData[m]) window.archiveData[m] = [];
             let q = 0;
             base.forEach(b => {
-                const bor = monthData(m).some(s => String(s.name).trim().toLowerCase() === String(b.name).trim().toLowerCase());
-                // TUZATILGAN: sinf yozuvning o'ziga ham yoziladi — filtr to'g'ri ishlaydi
-                if (!bor) { window.archiveData[m].push({ name:b.name, cls:b.cls||'', price:+b.price||0, food:0, st:'st-debt', att:true }); q++; }
+                const borYozuv = monthData(m).some(s => String(s.name).trim().toLowerCase() === String(b.name).trim().toLowerCase());
+                if (!borYozuv) {
+                    window.archiveData[m].push({ name:b.name, cls:String(b.cls||'').trim(), price:+b.price||0, food:0, st:'st-debt', att:true });
+                    q++;
+                }
             });
             window.saveToCloud(); renderTable();
             toast(q ? q+" ta o'quvchi qo'shildi ✅" : "Barcha o'quvchilar allaqachon bor 😊");
@@ -673,14 +718,16 @@
             const dateEl = document.getElementById('att-date'); if (!dateEl) return;
             if (!dateEl.value) dateEl.value = todayStr();
             const date = dateEl.value;
+            const clsF = document.getElementById('att-cls').value;
             const day = (window.attendance||{})[date] || {};
-            const names = [];
+            let names = [];
             baseStudents().forEach(b => names.push(b.name));
             MONTHS.forEach(m => monthData(m).forEach(s => {
                 if (s.name && !names.some(n => n.toLowerCase() === String(s.name).toLowerCase())) names.push(s.name);
             }));
+            if (clsF) names = names.filter(n => { const b = baseFind(n); return (b && String(b.cls||'').trim() === clsF); });
             const list = document.getElementById('att-list');
-            if (!names.length) { list.innerHTML = '<div class="chip">O\'quvchilar yo\'q — avval Baza yoki Hisob bo\'limida kiriting</div>'; }
+            if (!names.length) { list.innerHTML = '<div class="chip">O\'quvchilar yo\'q — avval Baza bo\'limida sinf bilan kiriting</div>'; }
             else {
                 list.innerHTML = names.map(n => {
                     const st = day[n];
@@ -694,7 +741,8 @@
             }
             const keldi = Object.values(day).filter(v=>v===true).length;
             const kelmadi = Object.values(day).filter(v=>v===false).length;
-            document.getElementById('att-summary').innerText = `📅 ${date} — ✅ ${keldi} keldi, ❌ ${kelmadi} kelmadi`;
+            document.getElementById('att-summary').innerText =
+                `📅 ${date}${clsF?' — '+clsF:''} — ✅ ${keldi} keldi, ❌ ${kelmadi} kelmadi`;
 
             const ym = date.slice(0,7);
             const tbody = document.getElementById('att-month-body'); const rows = [];
@@ -718,31 +766,37 @@
         }
         function markAllDay(val){
             const date = document.getElementById('att-date').value || todayStr();
+            const clsF = document.getElementById('att-cls').value;
             if (!window.attendance[date]) window.attendance[date] = {};
             const names = new Set();
-            baseStudents().forEach(b => names.add(b.name));
-            monthData(document.getElementById('month-select').value).forEach(s => { if (s.name) names.add(s.name); });
+            baseStudents().forEach(b => {
+                if (!clsF || String(b.cls||'').trim() === clsF) names.add(b.name);
+            });
             names.forEach(n => window.attendance[date][n] = val);
             window.saveAttendance(); renderAttendance(); toast("Belgilandi ✅");
         }
 
         /* ---------- QARZDORLAR ---------- */
         function renderDebts(){
+            const clsF = document.getElementById('debt-cls').value;
             const rows = []; let total = 0;
             MONTHS.forEach(m => monthData(m).forEach(s => {
                 if (s.st === 'st-debt' && s.name) {
+                    const c = clsOf(s);
+                    if (clsF && c !== clsF) return;
                     const debt = (+s.price||0)-(+s.food||0);
-                    if (debt > 0) { rows.push({ m, name:s.name, debt }); total += debt; }
+                    if (debt > 0) { rows.push({ m, name:s.name, cls:c, debt }); total += debt; }
                 }
             }));
             document.getElementById('debt-body').innerHTML = rows.map((r,i) =>
                 `<tr class="row-debt"><td><b>${r.m}</b></td><td>${esc(r.name)}</td>
+                 <td>${r.cls?`<span class="cls-chip">${esc(r.cls)}</span>`:'—'}</td>
                  <td style="color:var(--danger)"><b>${fmt(r.debt)}</b></td>
                  <td style="white-space:nowrap;">
                     <button class="btn btn-success" style="padding:6px 10px; font-size:12px;" onclick="waSend(${i})">📱 WhatsApp</button>
                     <button class="icon-btn" onclick="showCard('${js(r.name)}')">👤</button>
                  </td></tr>`).join('')
-                || '<tr><td colspan="4" style="text-align:center; color:var(--success); padding:30px;">🎉 Qarzdor yo\'q — hammasi to\'lagan!</td></tr>';
+                || '<tr><td colspan="5" style="text-align:center; color:var(--success); padding:30px;">🎉 Qarzdor yo\'q — hammasi to\'lagan!</td></tr>';
             document.getElementById('debt-ft').innerText = fmt(total);
             document.getElementById('d-total').innerText = fmt(total);
             document.getElementById('d-count').innerText = rows.length;
@@ -889,26 +943,32 @@
             window.expenses.splice(i,1); window.saveExpenses(); renderExpenses();
         }
 
-        /* ---------- BAZA ---------- */
+        /* ---------- BAZA (sinf bo'yicha guruhlangan) ---------- */
         function renderStudents(){
             const tbody = document.getElementById('base-body'); if (!tbody) return;
             const list = baseStudents();
-            tbody.innerHTML = list.map((b,i) =>
-                `<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.cls||'—')}</td><td>${fmt(b.price)}</td><td>${esc(b.phone||'—')}</td>
-                 <td style="white-space:nowrap;">
-                    <button class="icon-btn" title="Kartochka" onclick="showCard('${js(b.name)}')">👤</button>
-                    <button class="icon-btn" title="Tahrirlash" onclick="editBase(${i})">✏️</button>
-                    <button class="icon-btn" title="O'chirish" onclick="delBase(${i})">🗑</button>
-                 </td></tr>`).join('')
-                || '<tr><td colspan="5" style="text-align:center; color:var(--sub); padding:20px;">Baza bo\'sh — yuqoridan o\'quvchi qo\'shing</td></tr>';
-            updateClsFilter();
-        }
-        function updateClsFilter(){
-            const sel = document.getElementById('cls-filter'); if (!sel) return;
-            const cur = sel.value;
-            const classes = [...new Set(baseStudents().map(b=>String(b.cls||'').trim()).filter(Boolean))].sort();
-            sel.innerHTML = '<option value="">🎓 Barcha sinflar</option>' + classes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
-            if (classes.includes(cur)) sel.value = cur;
+            if (!list.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--sub); padding:20px;">Baza bo\'sh — yuqoridan o\'quvchi qo\'shing</td></tr>';
+                refreshClassSelects(); return;
+            }
+            const groups = {};
+            list.forEach((b,i) => {
+                const c = String(b.cls||'').trim() || 'Sinfsiz';
+                (groups[c] = groups[c] || []).push({ ...b, _i:i });
+            });
+            let html = '';
+            Object.keys(groups).sort().forEach(c => {
+                html += `<tr class="group-row"><td colspan="5">🎓 ${esc(c)} — ${groups[c].length} ta o'quvchi</td></tr>`;
+                html += groups[c].map(b =>
+                    `<tr><td><b>${esc(b.name)}</b></td><td>${esc(b.cls||'—')}</td><td>${fmt(b.price)}</td><td>${esc(b.phone||'—')}</td>
+                     <td style="white-space:nowrap;">
+                        <button class="icon-btn" title="Kartochka" onclick="showCard('${js(b.name)}')">👤</button>
+                        <button class="icon-btn" title="Tahrirlash" onclick="editBase(${b._i})">✏️</button>
+                        <button class="icon-btn" title="O'chirish" onclick="delBase(${b._i})">🗑</button>
+                     </td></tr>`).join('');
+            });
+            tbody.innerHTML = html;
+            refreshClassSelects();
         }
         function addStudentToBase(){
             const name = document.getElementById('st-name').value.trim();
@@ -916,11 +976,12 @@
             const price = parseFloat(document.getElementById('st-price').value)||0;
             const phone = document.getElementById('st-phone').value.trim();
             if (!name) return toast("Ismni kiriting!",'err');
+            if (!cls) return toast("Sinfni kiriting (masalan: 1-A)!",'err');
             if (!window.students) window.students = [];
             window.students.push({ name, cls, price, phone });
             window.saveStudents(); renderStudents();
             document.getElementById('st-name').value=''; document.getElementById('st-price').value=''; document.getElementById('st-phone').value='';
-            toast("Bazaga qo'shildi ✅");
+            toast(`«${cls}» sinfiga qo'shildi ✅`);
         }
         function editBase(i){
             const b = baseStudents()[i];
@@ -1000,13 +1061,10 @@
         }
         function exportExcel(){
             const m = document.getElementById('month-select').value;
-            const data = monthData(m).map((s,i)=>{
-                const b = baseFind(s.name);
-                return {
-                    'No':i+1, 'Ism Sharif':s.name, 'Sinf':s.cls||b?.cls||'',
-                    'Narx':+s.price||0, 'Ovqat':+s.food||0, 'Sof':(+s.price||0)-(+s.food||0),
-                    'Holat':getStatusLabel(s.st), 'Davomat':s.att?'Keldi':'Kelmadi' };
-            });
+            const data = monthData(m).map((s,i)=>({
+                'No':i+1, 'Ism Sharif':s.name, 'Sinf':clsOf(s),
+                'Narx':+s.price||0, 'Ovqat':+s.food||0, 'Sof':(+s.price||0)-(+s.food||0),
+                'Holat':getStatusLabel(s.st), 'Davomat':s.att?'Keldi':'Kelmadi' }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, m);
@@ -1023,9 +1081,8 @@
             doc.text("Tushum: "+fmt(tP)+" | Chiqim: "+fmt(tF)+" | Foyda: "+fmt(tP-tF), 14, 22);
             doc.autoTable({ startY:28,
                 head:[['No','Ism','Sinf','Narx','Ovqat','Sof','Holat','Davomat']],
-                body:data.map((s,i)=>{ const b = baseFind(s.name);
-                    return [i+1, s.name, s.cls||b?.cls||'', fmt(s.price), fmt(s.food),
-                        fmt((+s.price||0)-(+s.food||0)), getStatusLabel(s.st), s.att?'Keldi':'Kelmadi']; }),
+                body:data.map((s,i)=>[i+1, s.name, clsOf(s), fmt(s.price), fmt(s.food),
+                    fmt((+s.price||0)-(+s.food||0)), getStatusLabel(s.st), s.att?'Keldi':'Kelmadi']),
                 foot:[['','JAMI','',fmt(tP),fmt(tF),fmt(tP-tF),'','']],
                 styles:{fontSize:9}, headStyles:{fillColor:[99,102,241]} });
             doc.save(`Hisobot_${m}.pdf`); toast("PDF yuklandi 📄");
@@ -1067,7 +1124,7 @@
             data.forEach((s,i)=>{
                 tP += +s.price||0;
                 const st = s.st==='st-paid'?'✅':s.st==='st-partial'?'🟡':'🔴';
-                text += `${i+1}. <b>${esc(s.name)}</b> — ${fmt(s.price)} so'm ${st}\n`;
+                text += `${i+1}. <b>${esc(s.name)}</b>${clsOf(s)?' ('+esc(clsOf(s))+')':''} — ${fmt(s.price)} so'm ${st}\n`;
             });
             text += `\n💰 Jami tushum: <b>${fmt(tP)} so'm</b>\n📅 ${new Date().toLocaleDateString('uz-UZ')}`;
             fetch(`https://api.telegram.org/bot${c.tgToken}/sendMessage`, {
@@ -1091,14 +1148,12 @@
         });
         if (sessionStorage.getItem('isAuth')==='true') showMain();
 
-        // 6 soniyada bulut ulanmasa — oflayn rejim belgisi
         setTimeout(() => {
             if (window.cloudStatus === 'yuklanmoqda') { window.cloudStatus = 'oflayn'; updateSyncIndicator(); }
         }, 6000);
 
-        // Fayl to'g'ridan-to'g'ri ochilgan bo'lsa — ogohlantirish
         if (location.protocol === 'file:') {
-            setTimeout(() => toast("⚠️ Fayl kompyuterdan ochilgan! Bulut faqat Vercel havolasi orqali ishlaydi.", 'err'), 1200);
+            setTimeout(() => toast("⚠️ Fayl kompyuterdan ochilgan! Bulut faqat Vercel havolasi orqali ishlaydi.", 'warn'), 1200);
         }
     </script>
 </body>
