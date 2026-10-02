@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maktab Buxgalteriya PRO MAX</title>
-    <meta property="og:title" content="Maktab Buxgalteriya PRO MAX">
-    <meta property="og:description" content="To'liq maktab buxgalteriya tizimi">
+    <title>Maktab Buxgalteriya</title>
+    <meta property="og:title" content="Maktab Buxgalteriya">
+    <meta property="og:description" content="Talabalar hisob-kitobi tizimi">
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2653/2653500.png" type="image/x-icon">
     <meta name="theme-color" content="#6366f1">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,6 +16,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- ===== QURILMA XOTIRASI (zaxira) ===== -->
     <script>
         function lsGet(k){ try { return JSON.parse(localStorage.getItem('mb_'+k)); } catch(e){ return null; } }
         window.archiveData = lsGet('data') || {};
@@ -23,10 +24,10 @@
         window.attendance  = lsGet('attendance') || {};
         window.payments    = lsGet('payments') || [];
         window.expenses    = lsGet('expenses') || [];
-        window.trash       = lsGet('trash') || [];
-        window.config = Object.assign({ user:'admin', pass:'123', user2:'', pass2:'', role2:'view',
-                       phone:'+998', orgName:'Maktab', tgToken:'', chatId:'', defaultPrice:0, monthlyPlan:0 },
-                       lsGet('config') || {});
+        window.config = Object.assign(
+            { user:'admin', pass:'123', user2:'', pass2:'', role2:'view',
+              phone:'+998', orgName:'Maktab', tgToken:'', chatId:'', defaultPrice:0, monthlyPlan:0 },
+            lsGet('config') || {});
         window.cloudStatus = 'yuklanmoqda';
 
         window.saveLocal = function(){
@@ -36,21 +37,21 @@
                 localStorage.setItem('mb_attendance', JSON.stringify(window.attendance||{}));
                 localStorage.setItem('mb_payments', JSON.stringify(window.payments||[]));
                 localStorage.setItem('mb_expenses', JSON.stringify(window.expenses||[]));
-                localStorage.setItem('mb_trash', JSON.stringify(window.trash||[]));
                 localStorage.setItem('mb_config', JSON.stringify(window.config||{}));
             } catch(e){}
         };
         window.saveLocal();
 
+        // Firebase yuklanmasa — zaxira funksiyalar
         window.saveToCloud       = window.saveToCloud       || function(){ window.saveLocal(); };
         window.saveStudents      = window.saveStudents      || function(){ window.saveLocal(); };
         window.saveAttendance    = window.saveAttendance    || function(){ window.saveLocal(); };
         window.savePayments      = window.savePayments      || function(){ window.saveLocal(); };
         window.saveExpenses      = window.saveExpenses      || function(){ window.saveLocal(); };
-        window.saveTrash         = window.saveTrash         || function(){ window.saveLocal(); };
         window.saveConfigToCloud = window.saveConfigToCloud || function(){ window.saveLocal(); };
     </script>
 
+    <!-- ===== FIREBASE BULUT ===== -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -69,6 +70,7 @@
         function lsGet(k){ try { return JSON.parse(localStorage.getItem('mb_'+k)); } catch(e){ return null; } }
         const bor = v => v && Object.keys(v).length > 0;
 
+        // Bulut bo'sh bo'lsa — qurilma zaxirasidan bulutga yuklaymiz (ma'lumot ko'chishi!)
         onValue(ref(db, 'accounting/data'), (snapshot) => {
             const cloud = snapshot.val();
             if (bor(cloud)) { window.archiveData = cloud; window.saveLocal(); }
@@ -119,21 +121,14 @@
             }
             if (typeof renderExpenses === 'function') renderExpenses();
         });
-        onValue(ref(db, 'accounting/trash'), (snapshot) => {
-            const cloud = snapshot.val();
-            if (bor(cloud)) window.trash = cloud;
-            else {
-                const local = lsGet('trash');
-                if (local && local.length) { window.trash = local; set(ref(db,'accounting/trash'), local).catch(()=>{}); }
-            }
-        });
 
+        // Xato — faqat 1 marta, sariq
         let xatoKorsatildi = false;
         function xatoToast(){
             if (xatoKorsatildi) return;
             xatoKorsatildi = true;
             if (typeof toast === 'function')
-                toast("ℹ️ Bulutga ulanmadi — ma'lumotlar shu qurilmada xavfsiz saqlanadi. Yoqish uchun: Firebase → Realtime Database → Rules → '.read': true, '.write': true", 'warn');
+                toast("ℹ️ Bulutga ulanmadi — ma'lumotlar shu qurilmada saqlanadi. Yoqish: Firebase Console → Realtime Database → Rules → '.read': true, '.write': true", 'warn');
         }
 
         window.saveToCloud = () => {
@@ -144,11 +139,10 @@
                 .then(() => { window.cloudStatus = 'saqlandi'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); })
                 .catch(() => { window.cloudStatus = 'xato'; if (typeof updateSyncIndicator === 'function') updateSyncIndicator(); xatoToast(); });
         };
-        window.saveStudents = () => { window.saveLocal(); set(ref(db, 'accounting/students'), window.students).catch(xatoToast); };
+        window.saveStudents   = () => { window.saveLocal(); set(ref(db, 'accounting/students'), window.students).catch(xatoToast); };
         window.saveAttendance = () => { window.saveLocal(); set(ref(db, 'accounting/attendance'), window.attendance).catch(xatoToast); };
-        window.savePayments = () => { window.saveLocal(); set(ref(db, 'accounting/payments'), window.payments).catch(xatoToast); };
-        window.saveExpenses = () => { window.saveLocal(); set(ref(db, 'accounting/expenses'), window.expenses).catch(xatoToast); };
-        window.saveTrash = () => { window.saveLocal(); set(ref(db, 'accounting/trash'), window.trash).catch(xatoToast); };
+        window.savePayments   = () => { window.saveLocal(); set(ref(db, 'accounting/payments'), window.payments).catch(xatoToast); };
+        window.saveExpenses   = () => { window.saveLocal(); set(ref(db, 'accounting/expenses'), window.expenses).catch(xatoToast); };
         window.saveConfigToCloud = () => { window.saveLocal(); set(ref(db, 'accounting/config'), window.config).catch(xatoToast); };
     </script>
 
@@ -209,7 +203,6 @@
         @keyframes pop { from { transform:translateY(20px); opacity:0; } }
         .form-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
         .form-row input, .form-row select { margin:0; }
-        #plan-wrap { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 18px; margin-bottom:20px; }
         #plan-track { background:var(--bg); border-radius:10px; height:12px; margin-top:8px; overflow:hidden; }
         #plan-fill { height:100%; background:var(--primary); width:0%; transition:.4s; border-radius:10px; }
     </style>
@@ -219,7 +212,7 @@
     <div id="login-overlay">
         <div class="card" style="text-align:center;">
             <div style="font-size:48px;">☁️</div>
-            <h2 style="margin:8px 0 20px;">Cloud Buxgalteriya PRO MAX</h2>
+            <h2 style="margin:8px 0 20px;">Cloud Buxgalteriya</h2>
             <input type="text" id="username" placeholder="Login">
             <input type="password" id="password" placeholder="Parol">
             <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="handleLogin()">Kirish</button>
@@ -229,17 +222,15 @@
                 <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="handleRecover()">Parolni ko'rish</button>
                 <button class="btn" style="background:none; color:var(--sub); font-size:12px; margin-top:6px;" onclick="toggleRecover(false)">Bekor qilish</button>
             </div>
-            <div style="font-size:11px; color:var(--sub); margin-top:12px;">💡 Ikkinchi akkaunt (o'rinbosar uchun) ⚙️ Sozlamalarda qo'shiladi</div>
         </div>
     </div>
 
     <div id="main-content" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-            <h1 style="margin:0;">Maktab Pro ☁️ <span style="font-size:13px; color:var(--primary);">PRO MAX</span></h1>
+            <h1 style="margin:0;">Maktab Pro ☁️</h1>
             <span id="sync-status">☁️ Ulanmoqda...</span>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="btn btn-success" id="install-btn" style="display:none;" onclick="installPWA()">📱 O'rnatish</button>
-                <button class="btn btn-outline" onclick="openTrash()" title="Savat (o'chirilganlar)">🗑</button>
                 <button class="btn btn-outline" onclick="toggleDark()" id="dark-toggle">🌙</button>
                 <button class="btn btn-outline admin-only" onclick="openSettings()">⚙️</button>
                 <button class="btn btn-outline" onclick="logout()">Chiqish</button>
@@ -289,8 +280,8 @@
                 <button class="btn btn-danger admin-only" onclick="clearMonth()">🗑 Oyni tozalash</button>
             </div>
             <div id="cls-info" class="chip" style="display:none; margin-bottom:14px;"></div>
-            <div id="plan-wrap" style="display:none;">
-                <div id="plan-text" class="chip" style="border:none; padding:0; font-size:13px;"></div>
+            <div id="plan-wrap" style="display:none; margin-bottom:14px;">
+                <div id="plan-text" style="font-size:13px; font-weight:700; color:var(--sub);"></div>
                 <div id="plan-track"><div id="plan-fill"></div></div>
             </div>
             <div class="stats-grid">
@@ -307,9 +298,9 @@
                     <thead><tr>
                         <th style="width:40px">Tr</th><th style="width:60px">Dars</th>
                         <th onclick="setSort('name')">Ism <span id="arr-name"></span></th>
-                        <th style="width:110px" onclick="setSort('price')">Narx <span id="arr-price"></span></th>
-                        <th style="width:100px">Chegirma</th>
-                        <th style="width:110px">Ovqat</th>
+                        <th style="width:100px" onclick="setSort('price')">Narx <span id="arr-price"></span></th>
+                        <th style="width:90px">Chegirma</th>
+                        <th style="width:100px">Ovqat</th>
                         <th onclick="setSort('net')">Sof <span id="arr-net"></span></th>
                         <th>Holat</th><th></th>
                     </tr></thead>
@@ -351,14 +342,14 @@
                 </table>
             </div>
             <div class="table-container">
-                <h3>⚠️ Ogohlantirish (2 va undan ko'p oy qarzdorlar)</h3>
+                <h3>⚠️ Ogohlantirish (2+ oy qarzdorlar)</h3>
                 <table style="min-width:600px;">
                     <thead><tr><th>O'quvchi</th><th>Holat</th><th style="width:140px">Umumiy qarz</th><th style="width:70px">Amal</th></tr></thead>
                     <tbody id="warn-body"></tbody>
                 </table>
             </div>
             <div class="table-container">
-                <h3>🏅 Namuna to'lovchilar (shu oy to'laganlar)</h3>
+                <h3>🏅 Namuna to'lovchilar (shu oy)</h3>
                 <table style="min-width:400px;">
                     <thead><tr><th>O'quvchi</th><th>To'lovi</th></tr></thead>
                     <tbody id="good-body"></tbody>
@@ -426,7 +417,7 @@
                     <input id="pay-name" list="names-list" placeholder="Ism Sharif" style="flex:2; min-width:150px;">
                     <datalist id="names-list"></datalist>
                     <input id="pay-amount" type="number" placeholder="Summa (so'm)" style="flex:1; min-width:120px;">
-                    <select id="pay-type" style="flex:1; min-width:130px;">
+                    <select id="pay-type" style="flex:1; min-width:125px;">
                         <option>💵 Naqd</option><option>💳 Plastik</option><option>🏦 O'tkazma</option>
                     </select>
                     <input id="pay-date" type="date" style="flex:1; min-width:135px;">
@@ -438,7 +429,7 @@
                 <h3>📚 To'lovlar jurnali</h3>
                 <div id="pay-summary" style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;"></div>
                 <table>
-                    <thead><tr><th style="width:110px">Sana</th><th>Ism</th><th style="width:130px">Summa</th><th style="width:110px">Tur</th><th>Izoh</th><th style="width:110px">Amal</th></tr></thead>
+                    <thead><tr><th style="width:110px">Sana</th><th>Ism</th><th style="width:130px">Summa</th><th style="width:110px">Tur</th><th>Izoh</th><th style="width:100px">Amal</th></tr></thead>
                     <tbody id="pay-body"></tbody>
                     <tfoot><tr><td colspan="2">JAMI</td><td id="pay-ft"></td><td colspan="3"></td></tr></tfoot>
                 </table>
@@ -479,7 +470,6 @@
                     <input id="st-bday" type="date" title="Tug'ilgan kun (ixtiyoriy)" style="flex:1; min-width:135px;">
                     <button class="btn btn-primary admin-only" onclick="addStudentToBase()">Qo'shish</button>
                 </div>
-                <div class="chip" style="display:inline-block;">💡 Tug'ilgan kun kiritsangiz — «📊 Taqqoslash» bo'limida avtomatik ko'rinadi</div>
             </div>
             <div class="table-container">
                 <h3>👨‍🎓 O'quvchilar bazasi (sinf bo'yicha guruhlangan)</h3>
@@ -502,7 +492,7 @@
                 <input type="text" id="set-user2" placeholder="2-akkaunt login (bo'sh = o'chirilgan)">
                 <input type="text" id="set-pass2" placeholder="2-akkaunt parol">
                 <select id="set-role2">
-                    <option value="view">Faqat ko'rish va kitob yuritish cheklangan</option>
+                    <option value="view">Faqat ko'rish (o'chirish/o'zgartirish taqiqlanadi)</option>
                     <option value="full">To'liq huquqli</option>
                 </select>
             </div>
@@ -528,20 +518,10 @@
         </div>
     </div>
 
-    <!-- SAVAT -->
-    <div id="modal-trash" class="modal-overlay">
-        <div class="card" style="max-width:560px; max-height:85vh; overflow-y:auto;">
-            <h3 style="margin-top:0;">🗑 Savat (oxirgi 50 ta o'chirilgan)</h3>
-            <div id="trash-body"></div>
-            <button class="btn btn-outline" style="margin-top:10px;" onclick="closeModal('modal-trash')">Yopish</button>
-        </div>
-    </div>
-
     <script>
         let myChart, donutChart, yearChart, deferredPrompt = null;
         let sortKey = null, sortDir = 1, currentTab = 'hisob';
         const MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
-        const PAY_TYPES = ['💵 Naqd', '💳 Plastik', "🏦 O'tkazma"];
         const esc = s => String(s ?? '').replace(/"/g,'&quot;').replace(/</g,'&lt;');
         const js  = s => String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const fmt = n => (+n||0).toLocaleString();
@@ -570,7 +550,6 @@
             el.innerText = map[window.cloudStatus] || '';
         }
 
-        /* ---------- KIRISH (2-akkaunt qo'llab-quvvatlashi bilan) ---------- */
         function handleLogin() {
             try {
                 const cfg = window.config || { user:'admin', pass:'123' };
@@ -583,11 +562,9 @@
                 if (role) {
                     sessionStorage.setItem('isAuth','true');
                     sessionStorage.setItem('role', role);
-                    if (role === 'viewer') document.body.classList.add('viewer');
                     showMain();
-                    toast(role === 'viewer' ? "Faqat ko'rish rejimida kirdingiz 👀" : "Xush kelibsiz! 👋");
                 } else {
-                    alert("Login yoki parol xato!\n\nAsosiy: admin / 123\nIkkinchi akkaunt bo'lsa — uni kiriting (⚙️ Sozlamalarda qo'shiladi)");
+                    alert("Login yoki parol xato!\n\nAsosiy: admin / 123\nIkkinchi akkaunt ⚙️ Sozlamalarda qo'shiladi");
                 }
             } catch (e) { alert("Texnik xatolik: " + e.message); }
         }
@@ -672,15 +649,15 @@
                     <td>${s._i+1}</td>
                     <td><button class="attendance-btn ${s.att?'present':'absent'}" onclick="toggleAtt(${s._i})">${s.att?'✅':'❌'}</button></td>
                     <td><input value="${esc(s.name)}" ${dis} onchange="update(${s._i},'name',this.value)" style="border:none; background:none; margin:0; width:auto; max-width:200px;">${s._cls?`<span class="cls-chip">${esc(s._cls)}</span>`:''}</td>
-                    <td><input type="number" value="${s.price}" ${dis} onchange="update(${s._i},'price',this.value)" style="border:none; width:90px; margin:0;"></td>
-                    <td><input type="number" value="${s.disc||0}" ${dis} onchange="update(${s._i},'disc',this.value)" style="border:none; width:80px; margin:0; color:var(--warn);"></td>
-                    <td><input type="number" value="${s.food}" ${dis} onchange="update(${s._i},'food',this.value)" style="border:none; width:90px; margin:0;"></td>
+                    <td><input type="number" value="${s.price}" ${dis} onchange="update(${s._i},'price',this.value)" style="border:none; width:80px; margin:0;"></td>
+                    <td><input type="number" value="${s.disc||0}" ${dis} onchange="update(${s._i},'disc',this.value)" style="border:none; width:70px; margin:0; color:var(--warn);"></td>
+                    <td><input type="number" value="${s.food}" ${dis} onchange="update(${s._i},'food',this.value)" style="border:none; width:80px; margin:0;"></td>
                     <td><b>${fmt(sofOf(s))}</b></td>
                     <td><button class="status-badge ${s.st}" onclick="nextStatus(${s._i})">${getStatusLabel(s.st)}</button></td>
                     <td style="white-space:nowrap;">
                         <button class="icon-btn" title="Kartochka" onclick="showCard('${js(s.name)}')">👤</button>
                         <button class="icon-btn admin-only" title="Nusxa" onclick="duplicate(${s._i})">📋</button>
-                        <button class="icon-btn admin-only" title="O'chirish (savatga)" onclick="delStudent(${s._i})">🗑</button>
+                        <button class="icon-btn admin-only" title="O'chirish" onclick="delStudent(${s._i})">🗑</button>
                     </td></tr>`;
             }).join('') || `<tr><td colspan="9" style="text-align:center; color:var(--sub); padding:30px;">
                 ${clsF ? `«${esc(clsF)}» sinfida yozuv yo'q — «👨‍🎓 Bazadan to'ldirish» bosing`
@@ -702,7 +679,6 @@
             if (clsF) { info.style.display='inline-block'; info.innerText = `🎓 Hozir: ${clsF} sinfi — barcha hisoblar faqat shu sinf bo'yicha`; }
             else info.style.display='none';
 
-            // Reja vs fakt
             const plan = +window.config.monthlyPlan || 0;
             const pw = document.getElementById('plan-wrap');
             if (plan > 0) {
@@ -773,11 +749,9 @@
         function delStudent(i){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
             const s = monthData(m)[i];
-            if (!confirm(s.name+" o'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
-            window.trash.unshift({ t:'hisob', m, item:{...s}, label:(s.name||'Ism yo\'q')+' ('+m+')', time:Date.now() });
-            if (window.trash.length > 50) window.trash.pop();
+            if (!confirm(s.name+" o'chirilsinmi?")) return;
             window.archiveData[m].splice(i,1);
-            window.saveToCloud(); window.saveTrash(); renderTable();
+            window.saveToCloud(); renderTable();
         }
         function update(i, f, v){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
@@ -792,10 +766,7 @@
         }
         function clearMonth(){ if (needAdmin()) return;
             const m = document.getElementById('month-select').value;
-            const n = monthData(m).length;
-            if (!confirm(m+" oyidagi BARCHA ma'lumot ("+n+" ta) o'chirilsinmi? Savatdan qaytarish mumkin.")) return;
-            if (n) { window.trash.unshift({ t:'oy', m, items:monthData(m), label:m+' oyi ('+n+' ta yozuv)', time:Date.now() });
-                     if (window.trash.length > 50) window.trash.pop(); window.saveTrash(); }
+            if (!confirm(m+" oyidagi BARCHA ma'lumot o'chirilsinmi?!")) return;
             window.archiveData[m] = []; window.saveToCloud(); renderTable();
         }
         function copyPrevMonth(){ if (needAdmin()) return;
@@ -920,7 +891,7 @@
             window.saveAttendance(); renderAttendance(); toast("Belgilandi ✅");
         }
 
-        /* ---------- TAQQOSLASH + OGOLANTIRISH + NAMUNA + TUG'ILGAN KUN ---------- */
+        /* ---------- TAQQOSLASH ---------- */
         function renderCompare(){
             refreshClassSelects();
             const m = document.getElementById('month-select').value;
@@ -930,24 +901,22 @@
             data.forEach(s => { const c = clsOf(s) || 'Sinfsiz'; (groups[c]=groups[c]||[]).push(s); });
             allClasses().forEach(c => { if (!groups[c]) groups[c] = []; });
 
-            let sC=0, sP=0, sF=0, sD=0, sAtt=0, sN=0;
+            let sC=0, sP=0, sF=0, sD=0;
             const keys = Object.keys(groups).sort();
-            const body = keys.map(c => {
+            document.getElementById('cmp-body').innerHTML = keys.map(c => {
                 const g = groups[c];
                 let p=0, f=0, debt=0, att=0;
                 g.forEach(s => { p+=+s.price||0; f+=+s.food||0; if (s.att) att++; if (s.st==='st-debt' && sofOf(s)>0) debt+=sofOf(s); });
-                sC+=g.length; sP+=p; sF+=f; sD+=debt; sN+=g.length?att:0;
+                sC+=g.length; sP+=p; sF+=f; sD+=debt;
                 const pct = g.length?Math.round(att/g.length*100):0;
                 return `<tr><td><b>🎓 ${esc(c)}</b></td><td>${g.length}</td><td>${fmt(p)}</td><td>${fmt(f)}</td>
                     <td style="color:${debt>0?'var(--danger)':'var(--success)'}"><b>${fmt(debt)}</b></td><td>${pct}%</td></tr>`;
             }).join('') || '<tr><td colspan="6" style="text-align:center; color:var(--sub);">Ma\'lumot yo\'q</td></tr>';
-            document.getElementById('cmp-body').innerHTML = body;
             document.getElementById('cft-c').innerText = sC;
             document.getElementById('cft-p').innerText = fmt(sP);
             document.getElementById('cft-f').innerText = fmt(sF);
             document.getElementById('cft-d').innerText = fmt(sD);
 
-            // Ogohlantirish
             const namesUniq = [];
             MONTHS.forEach(mm => monthData(mm).forEach(s => { if (s.name && !namesUniq.includes(s.name)) namesUniq.push(s.name); }));
             const warn = [];
@@ -966,21 +935,19 @@
                  <td><button class="btn btn-success" style="padding:6px 10px; font-size:12px;" onclick="waWarn(${i})">📱</button></td></tr>`
             ).join('') || '<tr><td colspan="4" style="text-align:center; color:var(--success); padding:16px;">😊 Ogohlantirish talab qiladigan o\'quvchi yo\'q</td></tr>';
 
-            // Namuna to'lovchilar
             const good = data.filter(s => s.st==='st-paid' && s.name);
             document.getElementById('good-body').innerHTML = good.length ? good.map(s =>
                 `<tr><td><b>${esc(s.name)}</b>${clsOf(s)?`<span class="cls-chip">${esc(clsOf(s))}</span>`:''}</td>
                  <td style="color:var(--success)"><b>${fmt(sofOf(s))} so'm to'landi ✅</b></td></tr>`).join('')
                 : '<tr><td colspan="2" style="color:var(--sub); text-align:center;">Bu oyda hali to\'lovchi yo\'q</td></tr>';
 
-            // Tug'ilgan kunlar
             const cm = String(new Date().getMonth()+1).padStart(2,'0');
             const bds = baseStudents().filter(b => b.bday && String(b.bday).slice(5,7) === cm)
                                        .sort((a,b) => String(a.bday).slice(8) < String(b.bday).slice(8) ? -1 : 1);
             document.getElementById('bday-body').innerHTML = bds.length ? bds.map(b =>
                 `<tr><td><b>${esc(b.name)}</b>${b.cls?`<span class="cls-chip">${esc(b.cls)}</span>`:''}</td>
                  <td>🎂 ${String(b.bday).slice(8,10)}.${String(b.bday).slice(5,7)}</td></tr>`).join('')
-                : '<tr><td colspan="2" style="color:var(--sub); text-align:center;">Shu oyda tug\'ilgan kun yo\'q (bazada sana kiritilgan bo\'lsa ko\'rinadi)</td></tr>';
+                : '<tr><td colspan="2" style="color:var(--sub); text-align:center;">Shu oyda tug\'ilgan kun yo\'q (bazada sana kiritsangiz ko\'rinadi)</td></tr>';
         }
         function waWarn(i){
             const w = window._warn[i];
@@ -1133,11 +1100,8 @@
             toast("To'lov qayd etildi ✅ Chek uchun 🖨 bosing");
         }
         function delPayment(i){ if (needAdmin()) return;
-            const p = payList()[i];
-            if (!confirm("O'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
-            window.trash.unshift({ t:'tolov', item:{...p}, label:p.name+' — '+fmt(p.amount)+' so\'m', time:Date.now() });
-            if (window.trash.length > 50) window.trash.pop();
-            window.payments.splice(i,1); window.savePayments(); window.saveTrash(); renderPayments();
+            if (!confirm("O'chirilsinmi?")) return;
+            window.payments.splice(i,1); window.savePayments(); renderPayments();
         }
         function printReceipt(i){
             const p = payList()[i]; if (!p) return;
@@ -1187,48 +1151,8 @@
             toast("Xarajat qayd etildi ✅");
         }
         function delExpense(i){ if (needAdmin()) return;
-            const x = expList()[i];
-            if (!confirm("O'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
-            window.trash.unshift({ t:'xarajat', item:{...x}, label:x.title+' — '+fmt(x.amount)+' so\'m', time:Date.now() });
-            if (window.trash.length > 50) window.trash.pop();
-            window.expenses.splice(i,1); window.saveExpenses(); window.saveTrash(); renderExpenses();
-        }
-
-        /* ---------- SAVAT ---------- */
-        function openTrash(){
-            const list = arr(window.trash);
-            const emo = { hisob:'💰', baza:'👨‍🎓', tolov:'🧾', xarajat:'💸', oy:'📅' };
-            document.getElementById('trash-body').innerHTML = list.length ? list.map((x,i) =>
-                `<div class="att-row"><div><b>${emo[x.t]||'📦'} ${esc(x.label||'')}</b>
-                 <div style="font-size:11px; color:var(--sub);">${new Date(x.time).toLocaleString('uz-UZ')}</div></div>
-                 <button class="btn btn-success admin-only" style="padding:7px 12px; font-size:12px;" onclick="restoreTrash(${i})">♻️ Qaytarish</button></div>`).join('')
-                : '<div class="chip">Savat bo\'sh 😊</div>';
-            document.getElementById('modal-trash').style.display = 'flex';
-        }
-        function restoreTrash(i){ if (needAdmin()) return;
-            const x = arr(window.trash)[i]; if (!x) return;
-            if (x.t === 'hisob') {
-                if (!window.archiveData[x.m]) window.archiveData[x.m] = [];
-                arr(window.archiveData[x.m]).push ? null : null;
-                if (Array.isArray(window.archiveData[x.m])) window.archiveData[x.m].push(x.item);
-                else { const a = Object.values(window.archiveData[x.m]); a.push(x.item); window.archiveData[x.m] = a; }
-                window.saveToCloud();
-            } else if (x.t === 'baza') {
-                if (!Array.isArray(window.students)) window.students = arr(window.students);
-                window.students.push(x.item); window.saveStudents();
-            } else if (x.t === 'tolov') {
-                if (!Array.isArray(window.payments)) window.payments = arr(window.payments);
-                window.payments.unshift(x.item); window.savePayments();
-            } else if (x.t === 'xarajat') {
-                if (!Array.isArray(window.expenses)) window.expenses = arr(window.expenses);
-                window.expenses.unshift(x.item); window.saveExpenses();
-            } else if (x.t === 'oy') {
-                const cur = arr(window.archiveData[x.m]);
-                window.archiveData[x.m] = cur.concat(arr(x.items));
-                window.saveToCloud();
-            }
-            window.trash.splice(i,1); window.saveTrash();
-            openTrash(); renderCurrentTab(); toast("Qaytarildi ♻️");
+            if (!confirm("O'chirilsinmi?")) return;
+            window.expenses.splice(i,1); window.saveExpenses(); renderExpenses();
         }
 
         /* ---------- BAZA ---------- */
@@ -1288,10 +1212,8 @@
         }
         function delBase(i){ if (needAdmin()) return;
             const b = baseStudents()[i];
-            if (!confirm(b.name+" bazadan o'chirilsinmi? (Savatdan qaytarish mumkin)")) return;
-            window.trash.unshift({ t:'baza', item:{...b}, label:b.name+' (baza)', time:Date.now() });
-            if (window.trash.length > 50) window.trash.pop();
-            window.students.splice(i,1); window.saveStudents(); window.saveTrash(); renderStudents();
+            if (!confirm(b.name+" bazadan o'chirilsinmi?")) return;
+            window.students.splice(i,1); window.saveStudents(); renderStudents();
         }
 
         /* ---------- KARTOCHKA ---------- */
@@ -1394,7 +1316,7 @@
         }
         function backupJSON(){
             const all = { data:window.archiveData, students:window.students, attendance:window.attendance,
-                          payments:window.payments, expenses:window.expenses, trash:window.trash };
+                          payments:window.payments, expenses:window.expenses };
             const blob = new Blob([JSON.stringify(all,null,2)], {type:'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -1441,7 +1363,7 @@
               .catch(()=>toast("Internet xatosi!",'err'));
         }
 
-        /* ---------- PWA (telefonga o'rnatish) ---------- */
+        /* ---------- PWA ---------- */
         window.addEventListener('beforeinstallprompt', e => {
             e.preventDefault(); deferredPrompt = e;
             const b = document.getElementById('install-btn');
@@ -1466,11 +1388,10 @@
         ['username','password'].forEach(id =>
             document.getElementById(id).addEventListener('keydown', e=>{ if (e.key==='Enter') handleLogin(); }));
         document.addEventListener('keydown', e=>{
-            if (e.key==='Escape') { closeModal('modal-settings'); closeModal('modal-card'); closeModal('modal-trash'); }
+            if (e.key==='Escape') { closeModal('modal-settings'); closeModal('modal-card'); }
         });
         if (sessionStorage.getItem('isAuth')==='true') showMain();
 
-        // PWA manifest (dinamik yaratiladi — alohida fayl kerak emas)
         try {
             const mf = { name:"Maktab Pro", short_name:"Maktab Pro", start_url:location.href,
                 display:"standalone", background_color:"#f8fafc", theme_color:"#6366f1",
